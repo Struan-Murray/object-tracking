@@ -32,7 +32,7 @@ int main()
 	else
 	{
 		cout << "Port " << PORT_REP << " did not open" << endl << endl;
-		perror("PROGRAM FAILURE\n\nProgram failure information follows:\nCOMPUTER");
+		perror("Program failure information");
 		cout << "STRUAN: Microcontroller is either: not connected, locked by another program, or on another port (Change PORT_REP). Currently: " << PORT_REP <<"\n";
 		return -1;
 	}

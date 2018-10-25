@@ -1,0 +1,3 @@
+g++ -o test1 main.cpp PKG_CONFIG_PATH=/home/struan/opencv/opencv-3.4.3/lib/pkgconfig $(pkg-config opencv --cflags --libs) -I /home/struan/opencv/opencv-3.4.3/include
+PKG_CONFIG_PATH=/home/struan/opencv/opencv-3.4.3/lib/pkgconfig
+
