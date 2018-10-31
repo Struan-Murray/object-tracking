@@ -2,9 +2,9 @@
 //#define _SCL_SECURE_NO_WARNINGS
 // Libraries
 //#pragma comment(lib,"opencv_world330.lib")
-#include<opencv2/core.hpp>
-#include<opencv2/highgui.hpp>
-#include<opencv2/imgproc.hpp>
+#include <opencv2/core.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/imgproc.hpp>
 
 #include "basic_speed_PID.h"
 #include "IntervalCheckTimer.h"
@@ -49,7 +49,7 @@ int temp_v1;
 int temp_v2;
 int dis_u;
 int dis_v;
-int lock;
+int lockA;
 int U_MIN2;
 int  U_MAX2;
 int V_MIN2;
@@ -155,7 +155,7 @@ int trackFilteredObject(int &x, int &y, int &radius, Mat threshold, Mat &cameraF
 	vector< vector<Point> > contours;
 	vector<Vec4i> hierarchy;
 	//find contours of filtered image using openCV findContours function
-	findContours(temp, contours, hierarchy, CV_RETR_CCOMP, CV_CHAIN_APPROX_SIMPLE);
+	findContours(temp, contours, hierarchy, RETR_CCOMP, CHAIN_APPROX_SIMPLE);
 	//use moments method to find our filtered object
 	double refArea = 0;
 	objectFound = false;
@@ -262,14 +262,14 @@ void targetAquired(Mat &imgOriginal, Mat &threshold, VideoCapture capWebcam, cha
 
 		GaussianBlur(imgOriginal, imgOriginal, Size(5, 5), 0);
 
-		cvtColor(imgOriginal, imgYUV, CV_RGB2YCrCb);
+		cvtColor(imgOriginal, imgYUV, COLOR_RGB2YCrCb);
 
 		Rect r = Rect(160, 160, 320, 160);                       //draws rectangle at start 
 		rectangle(imgOriginal, r, Scalar(75, 0, 255), 5, 8, 0);
 		putText(imgOriginal,"Object identification" , Point(10, 50), 2, 1, Scalar(75, 0, 255), 2);
 
-		namedWindow("imgOriginal", CV_WINDOW_NORMAL);	// note: you can use CV_WINDOW_NORMAL which allows resizing the window
-		namedWindow("imgYUV", CV_WINDOW_NORMAL);
+		namedWindow("imgOriginal", WINDOW_NORMAL);	// note: you can use CV_WINDOW_NORMAL which allows resizing the window
+		namedWindow("imgYUV", WINDOW_NORMAL);
 
 
 		imshow("imgOriginal", imgOriginal);
@@ -401,7 +401,7 @@ void targetAquired(Mat &imgOriginal, Mat &threshold, VideoCapture capWebcam, cha
 		Mat Combo = Dilate.clone();
 		GaussianBlur(Combo, Combo, Size(5, 5), 0);
 		*/
-		namedWindow("Threshold", CV_WINDOW_NORMAL);
+		namedWindow("Threshold", WINDOW_NORMAL);
 	//	putText(threshold, "Ratio: " + intToString(max), Point(0, 350), 1, 1, Scalar(255, 255, 255), 2);
 		imshow("Threshold", threshold);
 		/*
@@ -908,7 +908,7 @@ bool check(Mat threshold) {
 
 		counthere--;
 
-		if (lock > 3) {
+		if (lockA > 3) {
 			adj = 1;
 			window_base = 350;
 			fine = 10;
@@ -1016,8 +1016,8 @@ int main() {
 	{
 		capWebcam.read(imgOriginal);
 		GaussianBlur(imgOriginal, imgOriginal, cv::Size(5, 5), 0);
-		cvtColor(imgOriginal, imgYUV, CV_RGB2YCrCb);
-		namedWindow("imgOriginal", CV_WINDOW_NORMAL);	// note: you can use CV_WINDOW_NORMAL which allows resizing the window
+		cvtColor(imgOriginal, imgYUV, COLOR_RGB2YCrCb);
+		namedWindow("imgOriginal", WINDOW_NORMAL);	// note: you can use CV_WINDOW_NORMAL which allows resizing the window
 	
 		// Avoids suppression of the intervals
 		
@@ -1035,7 +1035,7 @@ int main() {
 
 		
 		putText(imgOriginal, " Delta: " + intToString(delta2), Point(0, 100), 1, 1, Scalar(0, 0, 255), 2);
-		putText(imgOriginal, " Lost frames: " + intToString(lock), Point(0, 130), 1, 1, Scalar(0, 0, 255), 2);
+		putText(imgOriginal, " Lost frames: " + intToString(lockA), Point(0, 130), 1, 1, Scalar(0, 0, 255), 2);
 		
 		
 		inRange(imgYUV, cv::Scalar(Y_MIN, U_MIN, V_MIN), cv::Scalar(Y_MAX, U_MAX, V_MAX), threshold);
@@ -1043,13 +1043,13 @@ int main() {
 
 	    morphOps(threshold);
 		displayDirection(x, y, bufferX, bufferY, imgOriginal);
-		namedWindow("Threshold", CV_WINDOW_NORMAL);
+		namedWindow("Threshold", WINDOW_NORMAL);
 
 		if (trackFilteredObject(x, y, radius, threshold, imgOriginal) == 1) {
-			lock++;  // keeps count of how many frames tracking has been lost for
+			lockA++;  // keeps count of how many frames tracking has been lost for
 		}
 		else {
-			lock = 0;  // when object is found again variable is reset to zero 
+			lockA = 0;  // when object is found again variable is reset to zero 
 		}
 		
 		radium = radius; 
