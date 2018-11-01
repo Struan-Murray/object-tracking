@@ -1,25 +1,37 @@
-﻿
-//#define _SCL_SECURE_NO_WARNINGS
-// Libraries
-//#pragma comment(lib,"opencv_world330.lib")
-#include <opencv2/core.hpp>
-#include <opencv2/highgui.hpp>
-#include <opencv2/imgproc.hpp>
+﻿/* Object Tracking code written in C++.
+ * Original Author: 	Allesandro Rigola
+ * Current Author: 	Struan Murray (https://github.com/Struan-Murray)
+ *
+ * Requres OpenCV to be installed. See https://github.com/Struan-Murray/OpenCV-Install 
+ * for Unix install script.
+ */
 
-#include "basic_speed_PID.h"
-#include "IntervalCheckTimer.h"
+// Built in libraries
+
 #include <sstream>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string>
 #include <iostream>
 #include <deque>
-//#include "SerialPort.h"
+
+// Custom-built libraries
+
+#include "IntervalCheckTimer.h"
+#include "basic_speed_PID.h"
+
+// OpenCV libraries
+
+#include <opencv2/core.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/imgproc.hpp>
+// #include "SerialPort.h" // Microsoft Windows only Serial port manager for interfacing with microcontroller. XWINDOWS
 
 using namespace cv;
 using namespace std;
 
-//Globals
+// Globals
+
 float Kp1, Ki1;
 float Kp2, Ki2;
 float Kp3, Ki3;

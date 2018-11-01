@@ -11,6 +11,8 @@
 #define ACCESS2 0x55            // Microcontroller's 2nd verification byte
 #define SLEEP_TIME 4000         // Wait time (ms) for microcontroller to wake-up & reset
 
+void printError();
+
 using namespace std;
 
 uint16_t x{0x0}, y{0x0}, z{0x0};
@@ -31,8 +33,7 @@ int main()
 	}
 	else
 	{
-		cout << "Port " << PORT_REP << " did not open" << endl << endl;
-		perror("PROGRAM FAILURE\n\nProgram failure information follows:\nCOMPUTER");
+		printError();
 		cout << "STRUAN: Microcontroller is either: not connected, locked by another program, or on another port (Change PORT_REP). Currently: " << PORT_REP <<"\n";
 		return -1;
 	}
@@ -67,4 +68,10 @@ int main()
 
 	arduinoPort.close();
 	return 0;
+}
+
+void printError()
+{
+	cout << "Port " << PORT_REP << " did not open" << endl << endl;
+	perror("\aPROGRAM FAILURE\n\nProgram failure information is as follows:\nCOMPUTER");
 }
