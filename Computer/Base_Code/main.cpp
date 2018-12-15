@@ -6,6 +6,19 @@
  * for Unix/Linux install script.
  */
 
+// Enabling of features
+
+#define GUI 1 // Enabling of GUI (Master ON/OFF)
+#define MINIMAL_GUI 0 // Runs minimal GUI, less stats on screen
+
+#define SIMPLE_OPTIMISATIONS 0 // Cuts out unnecesary operations
+#define EXPENSIVE_OPTIMISATIONS 0 // Cuts out important operations
+
+#define EROSION_TYPE MORPH_ELLIPSE // Target Erosion Type
+#define EROSION_MAG 6 // Erosion Magnitude
+#define DILATION_TYPE MORPH_ELLIPSE // Target Dilation Type
+#define DILATION_MAG 16 // Dilation Magnitude
+
 // Built in libraries
 
 #include <sstream>
@@ -37,7 +50,7 @@ float Kp2, Ki2;
 float Kp3, Ki3;
 int Y_MAX = 256;
 int Y_MIN = 0;
-int U_MAX = 256; 
+int U_MAX = 256;
 int U_MIN = 0;
 int V_MAX = 256;
 int V_MIN = 0;
@@ -63,7 +76,7 @@ int dis_u;
 int dis_v;
 int lockA;
 int U_MIN2;
-int  U_MAX2;
+int U_MAX2;
 int V_MIN2;
 int V_MAX2;
 
@@ -92,67 +105,54 @@ IntervalCheckTimer timer;
 
 /* ----------------------- Main Code Begins ----------------------- */
 
-// Converts a number into a string for when printing to screen
-string intToString(int number) //XSTRUANCHECKED XLEGACY
-{
-	// Converts number to string
-	return std::to_string(number);
-}
-
 // Creates window with option to start program
 void createTrackbars() //XSTRUANCHECKED
 {
-	// Create memory to store trackbar window name
-	char TrackbarWindowName[50];
-	// Create memory to store trackbar name
-	char TrackbarName[50];
-
-	// Store trackbar window name in memory assigned above
-	sprintf(TrackbarWindowName, "Confirm Object Centered");
-	// Store trackbar name in memory assigned above
-	sprintf(TrackbarName, "Object Centered"); //XCHANGE sprintf_s > sprintf
+	// Create memory to store trackbar and trackbar window name
+	std::string TrackbarWindowName{"Confirm Object Centered"};
+	std::string TrackbarName{"Object Centered"};
 
 	// Create window for trackbars
 	namedWindow(TrackbarWindowName, 0);
 
-	/* Place trackbar in window, store trackbar value in variable 'proceed'
-	 * Trackbar value is between 0 and 1
-	 */
+	// Place trackbar in window, store trackbar value in variable 'proceed'
+	// Trackbar value is between 0 and 1
 	createTrackbar(TrackbarName, TrackbarWindowName, &proceed, 1, 0);
 }
 
 // Draws a target marker at point specified by inputs to function
 void drawObject(int x, int y, int radius, Mat &frame) //XSTRUANCHECKED
 {
-	// Draws a circle around x,y with radius
-	circle(frame, Point(x, y), radius, Scalar(255, 0, 0), 2);
+	#if GUI == 1
 	// Draws a centrepoint around x,y with diameter equal to radius (Half the size of the circle)
 	drawMarker(frame, Point(x, y), Scalar(255, 0, 0), MARKER_STAR, radius, (radius/50)+1);
+
+	#if MINIMAL == 0
+	// Draws a circle around x,y with radius
+	circle(frame, Point(x, y), radius, Scalar(255, 0, 0), 2);
 	// Displays current co-ordinates of the object next to marker
-	putText(frame, intToString(x) + "," + intToString(y), Point(x, y + 30), 1, 1, Scalar(255, 0, 0), 2);
+	putText(frame, std::to_string(x) + "," + std::to_string(y), Point(x, y + 30), 1, 1, Scalar(255, 0, 0), 2);
+	#endif
+	#endif
 }
 
-void morphOps(Mat &thresh) {
+// Takes raw binary image (thresh) and erodes noise, then dilates what remains.
+void morphOps(Mat &thresh) //XSTRUANCHECKED
+{
 
-	//create structuring element that will be used to "dilate" and "erode" image.
-	//the element chosen here is a 3px by 3px rectangle
+	// Create element structure that will erode the binary image.
+	Mat opElement = getStructuringElement(EROSION_TYPE, Size(EROSION_MAG, EROSION_MAG));
 
-	Mat erodeElement = getStructuringElement(MORPH_RECT, Size(4, 4));
-	//dilate with larger element so make sure object is nicely visible
-	Mat dilateElement = getStructuringElement(MORPH_RECT, Size(6, 6));
+	erode(thresh, thresh, opElement); // Erode binary image
 
-	erode(thresh, thresh, erodeElement);
-	erode(thresh, thresh, erodeElement);
+	#if SIMPLE_OPTIMISATIONS == 0
+	// Update element structure to dilate image
+	std::cout << "In\n";
+	opElement = getStructuringElement(DILATION_TYPE, Size(DILATION_MAG, DILATION_MAG));
+	#endif
 
-
-	dilate(thresh, thresh, dilateElement);
-	dilate(thresh, thresh, dilateElement);
-
-
+	dilate(thresh, thresh, opElement); // Dilate binary image
 }
-
-
-
 
 int trackFilteredObject(int &x, int &y, int &radius, Mat threshold, Mat &cameraFeed) {
 
@@ -218,7 +218,7 @@ void displayDirection(int x, int y, int bufferX[4], int bufferY[4], Mat &imgOrig
 		//cout << endl << endl << endl << "ENTER PRINTING LOOP" << endl << endl << endl;
 		int dx = bufferX[3] - bufferX[0];
 		int dy = bufferY[3] - bufferY[0];
-		putText(imgOriginal, intToString(dx) + "," + intToString(dy), Point(0,350), 1, 1, Scalar(0, 0, 255), 2);
+		putText(imgOriginal, std::to_string(dx) + "," + std::to_string(dy), Point(0,350), 1, 1, Scalar(0, 0, 255), 2);
 		if (dx > 20)
 		{
 			direction = "Left";
@@ -404,7 +404,7 @@ void targetAquired(Mat &imgOriginal, Mat &threshold, VideoCapture capWebcam, cha
 		GaussianBlur(Combo, Combo, Size(5, 5), 0);
 		*/
 		namedWindow("Threshold", WINDOW_NORMAL);
-	//	putText(threshold, "Ratio: " + intToString(max), Point(0, 350), 1, 1, Scalar(255, 255, 255), 2);
+	//	putText(threshold, "Ratio: " + std::to_string(max), Point(0, 350), 1, 1, Scalar(255, 255, 255), 2);
 		imshow("Threshold", threshold);
 		/*
 		namedWindow("Gaussian", CV_WINDOW_AUTOSIZE);
@@ -888,8 +888,8 @@ bool check(Mat threshold) {
 		int x_now = x  ;
 		int y_now = y  ;
 		int adj = 0;
-		putText(imgOriginal, "X: " + intToString(x_low) + "/"+ intToString(x_now) + "/" + intToString(x_high), Point(10, 300), 1, 1, Scalar(0, 0, 255), 2);
-		putText(imgOriginal, "Y: " + intToString(y_low) + "/" + intToString(y_now) + "/" + intToString(y_high), Point(10, 320), 1, 1, Scalar(0, 0, 255), 2);
+		putText(imgOriginal, "X: " + std::to_string(x_low) + "/"+ std::to_string(x_now) + "/" + std::to_string(x_high), Point(10, 300), 1, 1, Scalar(0, 0, 255), 2);
+		putText(imgOriginal, "Y: " + std::to_string(y_low) + "/" + std::to_string(y_now) + "/" + std::to_string(y_high), Point(10, 320), 1, 1, Scalar(0, 0, 255), 2);
 
 		if (counthere == 0){
 			counthere = 4;
@@ -952,40 +952,41 @@ bool check(Mat threshold) {
 
 
 
-int main() {
-	if (/*arduino.isConnected()*/1) cout << "Connection Established" << endl;
-	else cout << "ERROR, check port name";
-	VideoCapture capWebcam(0);// declare a VideoCapture object and associate to webcam, 0 => use 1st webcam
+int main()
+{
+	if (/*arduino.isConnected()*/1)
+	{
+		cout << "Connection Established" << endl;
+	}
+	else
+	{
+		cout << "ERROR, check port name";
+	}
+
+	VideoCapture capWebcam(0); // Declare a VideoCapture object and associate to webcam, 0 => use 1st webcam
 	double Ki, Kd, Kp;
 	int drift_Turn = 0;
 	int drift_Turn2 = 0;
 	int drift_Move = 0;      //PID parameters are produced automatically as the programme executes
-	 /*
-	cout << "Enter the value for the controller: \n";
-	cout << "Kp = ";
-	cin >> Kp;
-	cout << "Ki = ";
-	cin >> Ki;
-	cout << "Kd = ";
-	cin >> Kd;
-	*/
+
 	Kp = 0.03;
 	Ki = 1;
 	Kd = 0;
+
 	PID_turn1.set_gainvals(Kp, Kd, Ki);
 	PID_turn2.set_gainvals(Kp, Kd, Ki);
 
-	if (capWebcam.isOpened() == false) {				// check if VideoCapture object was associated to webcam successfully
-		cout << "error: capWebcam not accessed successfully\n\n";	// if not, print error message to std out
-		return(-1);														// and exit program
+	if (capWebcam.isOpened() == false) // check if VideoCapture object was associated to webcam successfully
+	{
+		perror("Program Failure Information");
+		cout << "error: capWebcam not accessed successfully\n\n"; // if not, print error message to std out
+		return(-1); // and exit program
 	}
-
 
 	Mat imgOriginal;
 	Mat threshold;
 	Mat imgYUV;
 	Mat borderImage;
-
 
 	bool trackObjects = true;
 
@@ -1002,12 +1003,12 @@ int main() {
 	cout << "Target found";
 	timer.setInterCheck(100);
 
-	while (charCheckForEscKey != 27 && capWebcam.isOpened())
+	while (charCheckForEscKey != '0' && capWebcam.isOpened())
 	{
 		capWebcam.read(imgOriginal);
 		GaussianBlur(imgOriginal, imgOriginal, cv::Size(5, 5), 0);
 		cvtColor(imgOriginal, imgYUV, COLOR_RGB2YCrCb);
-		namedWindow("imgOriginal", WINDOW_NORMAL);	// note: you can use CV_WINDOW_NORMAL which allows resizing the window
+		namedWindow("imgOriginal", WINDOW_NORMAL); // note: you can use CV_WINDOW_NORMAL which allows resizing the window
 
 		// Avoids suppression of the intervals
 
@@ -1024,8 +1025,8 @@ int main() {
 		}
 
 
-		putText(imgOriginal, " Delta: " + intToString(delta2), Point(0, 100), 1, 1, Scalar(0, 0, 255), 2);
-		putText(imgOriginal, " Lost frames: " + intToString(lockA), Point(0, 130), 1, 1, Scalar(0, 0, 255), 2);
+		putText(imgOriginal, " Delta: " + std::to_string(delta2), Point(0, 100), 1, 1, Scalar(0, 0, 255), 2);
+		putText(imgOriginal, " Lost frames: " + std::to_string(lockA), Point(0, 130), 1, 1, Scalar(0, 0, 255), 2);
 
 		inRange(imgYUV, cv::Scalar(Y_MIN, U_MIN, V_MIN), cv::Scalar(Y_MAX, U_MAX, V_MAX), threshold);
 
@@ -1034,39 +1035,38 @@ int main() {
 		displayDirection(x, y, bufferX, bufferY, imgOriginal);
 		namedWindow("Threshold", WINDOW_NORMAL);
 
-		if (trackFilteredObject(x, y, radius, threshold, imgOriginal) == 1) {
-			lockA++;  // keeps count of how many frames tracking has been lost for
+		if (trackFilteredObject(x, y, radius, threshold, imgOriginal) == 1)
+		{
+			lockA++; // keeps count of how many frames tracking has been lost for
 		}
-		else {
-			lockA = 0;  // when object is found again variable is reset to zero 
+		else
+		{
+			lockA = 0; // when object is found again variable is reset to zero 
 		}
 
 		radium = radius;
-		putText(imgOriginal,"Radius: " + intToString(radium), Point(20, 250), 1, 1, Scalar(0, 0, 255), 2);
-		PID_dist(Kp, Ki, Kd, radium, 0.2);  //adjusts PID values depending on radium ob object 
+		putText(imgOriginal,"Radius: " + std::to_string(radium), Point(20, 250), 1, 1, Scalar(0, 0, 255), 2);
+		PID_dist(Kp, Ki, Kd, radium, 0.2); // adjusts PID values depending on radium ob object 
 		putText(imgOriginal, "Kp: " + to_string(Kp1) + " Ki: " + to_string(Ki1) + " Kd: " + to_string(Kd), Point(150, 470), 1, 1, Scalar(0, 0, 255), 2);
 		facendi(imgYUV, imgOriginal, 20, 5, x_out, y_out);
 
 		putText(imgOriginal, direction, Point(0, 400), 1, 1, Scalar(0, 0, 255), 2);
-		putText(imgOriginal, " U_MIN: " + intToString(U_MIN) + "    V_MIN: " + intToString(V_MIN) + "    Y_MIN: " + intToString(Y_MIN) , Point(180, 15), 1, 1, Scalar(0, 0, 255), 2);
-		putText(imgOriginal, " U_MAX: " + intToString(U_MAX) + "    V_MAX: " + intToString(V_MAX) + "    Y_MAX: " + intToString(Y_MAX), Point(180, 30), 1, 1, Scalar(0, 0, 255), 2);
+		putText(imgOriginal, " U_MIN: " + std::to_string(U_MIN) + "    V_MIN: " + std::to_string(V_MIN) + "    Y_MIN: " + std::to_string(Y_MIN) , Point(180, 15), 1, 1, Scalar(0, 0, 255), 2);
+		putText(imgOriginal, " U_MAX: " + std::to_string(U_MAX) + "    V_MAX: " + std::to_string(V_MAX) + "    Y_MAX: " + std::to_string(Y_MAX), Point(180, 30), 1, 1, Scalar(0, 0, 255), 2);
 		//putText(imgOriginal, "In: " + to_string(inside) + " Out: " + to_string(outside), Point(5, 15), 1, 1, Scalar(0, 0, 255), 2);
 		//putText(imgOriginal, "Ratio: " + to_string((inside / (outside + delta2))), Point(25, 35), 1, 1, Scalar(0, 0, 255), 2);
 
 		imshow("imgOriginal", imgOriginal);
 		imshow("Threshold", threshold);
+
 		if (timer.isMinChekTimeElapsedAndUpdate())
 		{
 			checkturn(x, drift_Turn);
 			//checkDrive(radius, drift_Move);
 			checkturn2(y, drift_Turn2);
 		}
-		charCheckForEscKey = cv::waitKey(30);
-		//cout << x << " , " << y << endl;
-		//cout << radius << endl;
+		charCheckForEscKey = cv::waitKey(20);
 	}
-	// end while
 	return (0);
-
 }
 
