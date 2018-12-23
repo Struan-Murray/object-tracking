@@ -1,5 +1,5 @@
 CC:=g++
-CFLAGS:= -w -O3 -s -w `pkg-config --cflags opencv4`
+CFLAGS:= -Wall -O3 -s `pkg-config --cflags opencv4`
 LDFLAGS:= `pkg-config --libs opencv4`
 
 objectTracking: main.cpp

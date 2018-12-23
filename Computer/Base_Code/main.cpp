@@ -385,137 +385,139 @@ void targetAquired(Mat &imgOriginal, Mat &threshold, VideoCapture capWebcam, cha
 	}
 }
 
-char* mapTurn(int drift)   // x-axis
+char mapTurn(int drift)   // x-axis XCHANGED from char* to char
 {
 
 	switch (drift)
 	{
 	case 0:
-		return "0";
+		return '0';
 	case 1:
-		return "a";
+		return 'a';
 	case 2:
-		return "b";
+		return 'b';
 	case 3:
-		return "c";
+		return 'c';
 	case 4:
-		return "d";
+		return 'd';
 	case 5:
-		return "e";
+		return 'e';
 	case 6:
-		return "f";
+		return 'f';
 	case 7:
-		return"g";
+		return 'g';
 	case 8:
-		return "h";
+		return 'h';
 	case 9:
-		return "i";
+		return 'i';
 	case 10:
-		return "j";
+		return 'j';
 	case -1:
-		return "k";
+		return 'k';
 	case -2:
-		return "l";
+		return 'l';
 	case -3:
-		return "m";
+		return 'm';
 	case -4:
-		return "n";
+		return 'n';
 	case -5:
-		return "o";
+		return 'o';
 	case -6:
-		return "p";
+		return 'p';
 	case -7:
-		return "q";
+		return 'q';
 	case -8:
-		return "r";
+		return 'r';
 	case -9:
-		return "s";
+		return 's';
 	case -10:
-		return "t";
+		return 't';
 	default:
 		cout << "Print x";
-		return "x";
+		return 'x';
 	}
 }
 
-char* mapTurn2(int drift)   // y-axis
+char mapTurn2(int drift)   // y-axis XCHANGED from char* to char
 {
 
 	switch (drift)
 	{
 	case 0:
-		return "0";
+		return '0';
 	case 1:
-		return "A";
+		return 'A';
 	case 2:
-		return "B";
+		return 'B';
 	case 3:
-		return "C";
+		return 'C';
 	case 4:
-		return "D";
+		return 'D';
 	case 5:
-		return "E";
+		return 'E';
 	case 6:
-		return "F";
+		return 'F';
 	case 7:
-		return"G";
+		return 'G';
 	case 8:
-		return "H";
+		return 'H';
 	case 9:
-		return "I";
+		return 'I';
 	case 10:
-		return "J";
+		return 'J';
 	case -1:
-		return "K";
+		return 'K';
 	case -2:
-		return "L";
+		return 'L';
 	case -3:
-		return "M";
+		return 'M';
 	case -4:
-		return "N";
+		return 'N';
 	case -5:
-		return "O";
+		return 'O';
 	case -6:
-		return "P";
+		return 'P';
 	case -7:
-		return "Q";
+		return 'Q';
 	case -8:
-		return "R";
+		return 'R';
 	case -9:
-		return "S";
+		return 'S';
 	case -10:
-		return "T";
+		return 'T';
 	default:
 		cout << "Print x";
-		return "x";
+		return 'x';
 	}
 }
-char* mapMove(int drift)
+char mapMove(int drift) // XCHANGED from char* to char
 {
 	switch (drift)
 	{
 	case 0:
-		return "z";
+		return 'z';
 	case 1:
-		return "1";
+		return '1';
 	case 2:
-		return "2";
+		return '2';
 	case 3:
-		return "3";
+		return '3';
 	case 4:
-		return "4";
+		return '4';
 	case 5:
-		return "5";
+		return '5';
 	case -1:
-		return "6";
+		return '6';
 	case -2:
-		return "7";
+		return '7';
 	case -3:
-		return "8";
+		return '8';
 	case -4:
-		return "9";
+		return '9';
 	case -5:
-		return ":";
+		return ':';
+	default:
+		return 'x';
 	}
 }
 
