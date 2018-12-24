@@ -1,8 +1,7 @@
 #ifndef basic_speed_PID_H
 #define basic_speed_PID_H
+
 #include<time.h>
-
-
 
 // this is written assuming PID control of some DC motor
 // the target value is target_speed (rpm)
@@ -13,38 +12,37 @@
 
 class basic_speed_PID
 {
+	protected:
 
-protected:
-
-	// gain values, used for PID contrl: 
+	// gain values, used for PID contrl:
 	// obtained by scaling the ref_values depending on the frequency of control operations
-	double kp;                  // * (P)roportional Tuning Parameter
-	double ki;                  // * (I)ntegral Tuning Parameter
-	double kd;                  // * (D)erivative Tuning Parameter
+	double kp{0};                  // * (P)roportional Tuning Parameter
+	double ki{0};                  // * (I)ntegral Tuning Parameter
+	double kd{0};                  // * (D)erivative Tuning Parameter
 
 								// reference values, set by the user (default provided)
-	double ref_kp;                  // * (P)roportional Tuning Parameter
-	double ref_ki;                  // * (I)ntegral Tuning Parameter
-	double ref_kd;                  // * (D)erivative Tuning Parameter
+	double ref_kp{0};                  // * (P)roportional Tuning Parameter
+	double ref_ki{0};                  // * (I)ntegral Tuning Parameter
+	double ref_kd{0};                  // * (D)erivative Tuning Parameter
 
 									// reference interval, used to scale the reference control paramters
-	double ref_contr_inter_time_ms;
+	double ref_contr_inter_time_ms{0};
 
-	// range of the signal driving the speed, e/g/ PWM 
-	double PIDoutMin, PIDoutMax;
+	// range of the signal driving the speed, e/g/ PWM
+	double PIDoutMin{0}, PIDoutMax{0};
 
 	// used for PID calculation
-	unsigned long last_control_ms;
-	double last_error;
-	double cumulative_error;
+	unsigned long last_control_ms{0};
+	double last_error{0};
+	double cumulative_error{0};
 
 	//
 	double const REF_CONTR_INTER_MS = 100;
 
-	bool enabled;
+	bool enabled{0};
 
 	//
-	bool echopidcontrol;
+	bool echopidcontrol{0};
 
 
 	void set_defaultvals()
@@ -135,19 +133,12 @@ public:
 			if (output < PIDoutMin)
 				output = PIDoutMin;
 
-		//
-		//print to screen 
-		//
-
-
+		//print to screen
 		// store vals for the next iteration
 		last_control_ms = now;
 		last_error = error;
 		//
-
 		return output;
-
-
 	}
 
 	double GetKp() { return kp; }
@@ -158,17 +149,11 @@ public:
 	bool get_echopidcontrol() { return echopidcontrol; }
 	void reset_pidcontrol()
 	{
-		// set params as when initialized 
+		// set params as when initialized
 		last_control_ms = clock();
 		last_error = 0.0;
 		cumulative_error = 0.0;
 	}
-
 };
-
-
-
-
-
 
 #endif

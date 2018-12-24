@@ -8,9 +8,9 @@ using namespace std;
 
 class IntervalCheckTimer {
 protected:
-	// 
-	unsigned long int last_time_in_checked, min_inter_check_ms;
-	static const unsigned long int  default_min_inter_check_ms = 100;
+	//
+	unsigned long int last_time_in_checked{0}, min_inter_check_ms{0};
+	static const unsigned long int  default_min_inter_check_ms{100};
 public:
 	IntervalCheckTimer()
 	{
