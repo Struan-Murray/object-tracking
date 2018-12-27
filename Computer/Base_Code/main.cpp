@@ -39,6 +39,9 @@ using namespace std;
 #define SIMPLE_OPTIMISATIONS 0 // Cuts out unnecesary operations
 #define EXPENSIVE_OPTIMISATIONS 0 // Cuts out important operations
 
+/* 0 for built-in webcam, or USB webcam if no built-in webcam is available.
+ * 1 for USB webcam if built-in webcam IS available.*/
+#define WEBCAM 0
 const int frameHeight = 480;
 const double aspectRatio = (double)4/(double)3;
 
@@ -56,6 +59,7 @@ const int minimumObjectArea = frameHeight * frameWidth / 1000;
 const int maximumObjectArea = frameHeight * frameWidth / 1.5;
 
 bool objectFound = false; // Global marker for found object
+bool arduinoConnected = false; // Global marker for Arduino connection
 int startProgram = false; // Global wait for user to start program
 int counter = 0; // Counter for use with direction calculation
 
@@ -110,10 +114,10 @@ int counthere = 0;
 int prima = 1;
 basic_speed_PID PID_turn1(0, 0, 0, -10, 10);
 basic_speed_PID PID_turn2(0, 0, 0, -10, 10);
-
 basic_speed_PID PID_speed(0, 0, 0, -5 , 5 );
 IntervalCheckTimer timer;
 //SerialPort arduino("\\\\.\\COM3");
+
 
 /* ----------------------- Main Code Begins ----------------------- */
 
@@ -131,555 +135,41 @@ char mapTurn2(int); // y-axis XCHANGED from char* to char XARDUINO
 char mapMove(int); // XCHANGED from char* to char XARDUINO
 void PID_dist(double &Kp,double &Ki,double &Kd, int radium, float range); // Modifies PID values based on distance
 int trackFilteredObject(int &x, int &y, int &radius, Mat threshold, Mat &cameraFeed); // Establishes borders and center of object
-
-void targetAquired(Mat &imgOriginal, Mat &threshold, VideoCapture capWebcam, char charCheckForEscKey)
-{
-	std::cout << "HERE2.1\n";
-	bool useMorphOps = true;
-	Mat imgYUV;
-
-	while (charCheckForEscKey != 27 && capWebcam.isOpened())
-	{		// until the Esc key is pressed or webcam connection is lost
-		bool blnFrameReadSuccessfully = capWebcam.read(imgOriginal);		// get next frame
-
-		if (!blnFrameReadSuccessfully || imgOriginal.empty())
-		{		// if frame not read successfully
-
-			cout << "error: frame not read from webcam\n";		// print error message to std out
-
-			break;													// and jump out of while loop
-		}
-
-		GaussianBlur(imgOriginal, imgOriginal, Size(5, 5), 0);
-
-		cvtColor(imgOriginal, imgYUV, COLOR_RGB2YUV); //XCHANGE COLOR_RGB2YCrCb > COLOR_RGB2HSV
-
-		Rect r = Rect(160, 160, 320, 160);                       //draws rectangle at start
-		rectangle(imgOriginal, r, Scalar(75, 0, 255), 5, 8, 0);
-		putText(imgOriginal,"Object identification" , Point(10, 50), 2, 1, Scalar(75, 0, 255), 2);
-		namedWindow("imgOriginal", WINDOW_NORMAL);	// note: you can use CV_WINDOW_NORMAL which allows resizing the window
-		namedWindow("imgYUV", WINDOW_NORMAL);
-
-		imshow("imgOriginal", imgOriginal);
-		imshow("imgYUV", imgYUV);
-
-		Mat borderImage;
-
-		createTrackbars(); //returns startProgram = 1 when button is pressed
-		//Begin of calibration function ---------only run once at startup---------------------------------------
-		if (startProgram == true)
-		{
-			c = 320;
-			d = 160;
-			int old_U_MIN = 0;
-			int old_U_MAX = 0;
-			int old_V_MIN = 0;
-			int old_V_MAX = 0;
-			//int old_Y_MIN = 0;
-			//int old_Y_MAX = 0;
-			float old_max = 0;  //all values up to this one are initialised as 0 and rewritten at first iteration
-			int delta = 100;    //to be added to denominator of max function
-			int fine = 2;       // the higher, the lower the level of accuracy in calibration mode
-
-			float max = 0;
-			inside = 0;
-			outside = 0;
-
-			for (U_MIN = YUVMIN; U_MIN <= UVMAX; U_MIN = U_MIN + fine)
-			{
-				inRange(imgYUV, Scalar(Y_MIN, U_MIN, V_MIN), cv::Scalar(Y_MAX, U_MAX, V_MAX), threshold);
-				Mat cropedImage = threshold(Rect(160, 160, c, d));
-				threshold.copyTo(borderImage);
-				rectangle(borderImage, r, Scalar(0, 0, 0), -1, 8, 0);
-				inside = countNonZero(cropedImage);
-				outside = countNonZero(borderImage);
-				max = inside/(outside + delta);
-				if (max > old_max)
-				{
-					old_U_MIN = U_MIN;
-					old_max = max;
-				}
-			}
-
-			U_MIN = old_U_MIN;
-			old_max = 0;
-			inside = 0;
-			outside = 0;
-
-
-			for (U_MAX = UVMAX; U_MAX >= YUVMIN; U_MAX = U_MAX - fine)
-			{
-				inRange(imgYUV, Scalar(Y_MIN, U_MIN, V_MIN), cv::Scalar(Y_MAX, U_MAX, V_MAX), threshold);
-				Mat cropedImage = threshold(Rect(160, 160, c, d));
-				threshold.copyTo(borderImage);
-				rectangle(borderImage, r, Scalar(0, 0, 0), -1, 8, 0);
-				inside = countNonZero(cropedImage);
-				outside = countNonZero(borderImage);
-				max = inside / (outside + delta);
-				if (max > old_max)
-				{
-					old_U_MAX = U_MAX;
-					old_max = max;
-				}
-			}
-
-			U_MAX = old_U_MAX;
-			old_max = 0;
-			inside = 0;
-			outside = 0;
-
-			for (V_MIN = YUVMIN; V_MIN <= UVMAX; V_MIN = V_MIN + fine)
-			{
-				inRange(imgYUV, Scalar(Y_MIN, U_MIN, V_MIN), cv::Scalar(Y_MAX, U_MAX, V_MAX), threshold);
-				Mat cropedImage = threshold(Rect(160, 160, c, d));
-				threshold.copyTo(borderImage);
-				rectangle(borderImage, r, Scalar(0, 0, 0), -1, 8, 0);
-				inside = countNonZero(cropedImage);
-				outside = countNonZero(borderImage);
-				max = inside / (outside + delta);
-				if (max > old_max)
-				{
-					old_V_MIN = V_MIN;
-					old_max = max;
-				}
-			}
-
-			V_MIN = old_V_MIN;
-			old_max = 0;
-			inside = 0;
-			outside = 0;
-
-			for (V_MAX = UVMAX; V_MAX >= YUVMIN; V_MAX = V_MAX - fine)
-			{
-				inRange(imgYUV, Scalar(Y_MIN, U_MIN, V_MIN), cv::Scalar(Y_MAX, U_MAX, V_MAX), threshold);
-				Mat cropedImage = threshold(Rect(160, 160, c, d));
-				threshold.copyTo(borderImage);
-				rectangle(borderImage, r, Scalar(0, 0, 0), -1, 8, 0);
-				inside = countNonZero(cropedImage);
-				outside = countNonZero(borderImage);
-				max = inside / (outside + delta);
-				if (max > old_max)
-				{
-					old_V_MAX = V_MAX;
-					old_max = max;
-				}
-			}
-			V_MAX = old_V_MAX;
-			old_max = 0;
-			Y_MIN = 0;
-			Y_MAX = 255;
-
-			found = 1;  //this allows to move on from calibration to tracking mode
-
-		//end of calibration function ------------------------------------------
-		}
-		inRange(imgYUV, Scalar(Y_MIN, U_MIN, V_MIN), cv::Scalar(Y_MAX, U_MAX, V_MAX), threshold);
-		//produces image with the calibrate paramters that have been produced
-
-		//imshow("cropedImage", cropedImage); //Ale
-		//imshow("borderImage", borderImage); //Ale
-		//end of ale's part
-
-		//Mat Gaussian = threshold.clone();
-		//Mat Dilate = threshold.clone();
-		//GaussianBlur(Gaussian, Gaussian, Size(5, 5), 0);
-
-		if (useMorphOps)
-		{
-			morphOps(threshold);
-		}
-		/*
-		Mat Combo = Dilate.clone();
-		GaussianBlur(Combo, Combo, Size(5, 5), 0);
-		*/
-		namedWindow("Threshold", WINDOW_NORMAL);
-	//	putText(threshold, "Ratio: " + std::to_string(max), Point(0, 350), 1, 1, Scalar(255, 255, 255), 2);
-		imshow("Threshold", threshold);
-		/*
-		namedWindow("Gaussian", CV_WINDOW_AUTOSIZE);
-		imshow("Gaussian", Gaussian);
-
-		namedWindow("Dilate", CV_WINDOW_AUTOSIZE);
-		imshow("Dilate", Dilate);
-
-		namedWindow("Combo", CV_WINDOW_AUTOSIZE);
-		imshow("Combo", Combo);
-		*/
-
-		charCheckForEscKey = waitKey(30);			// delay (in ms) and get key press, if any
-		if (found == 1)
-		{
-			destroyAllWindows();
-			return;
-		}
-	}
-}
-
-void checkturn(int x, int &drift_Turn)  // x-axis
-{
-	int old_drift = drift_Turn;
-	int change_Drift;
-
-	if (objectFound == false)
-	{
-		//arduino.writeSerialPort(mapTurn(11), 2);
-	}
-	if (objectFound == true)
-	{
-		drift_Turn = PID_turn1.ComputePID_output(320, x);
-		change_Drift = drift_Turn - old_drift;
-		if (change_Drift != 0)
-		{
-			//arduino.writeSerialPort(mapTurn(drift_Turn), 2);
-		}
-	}
-}
-
-void checkturn2(int y, int &drift_Turn2)     // y-axis
-{
-	int old_drift2 = drift_Turn2;
-	int change_Drift2;
-
-	if (objectFound == false)
-	{
-		//arduino.writeSerialPort(mapTurn(11), 2);
-	}
-	if (objectFound == true)
-	{
-		drift_Turn2 = PID_turn2.ComputePID_output(240, y);
-		change_Drift2 = drift_Turn2 - old_drift2;
-		if (change_Drift2 != 0)
-		{
-			//arduino.writeSerialPort(mapTurn2(drift_Turn2), 2);
-		}
-	}
-}
-
-
-void adjuster_U(Mat imgYUV, int delta, int fine, int interval, int radium, Rect r)
-{
-	int half_int = int(interval / 2);
-	int U_MIN_low = 0;
-	int U_MAX_low = 0;
-	int U_MIN_high = 0;
-	int U_MAX_high = 0;
-	inside = 0;
-	outside = 0;
-	Mat threshold;
-	Mat borderImage;
-	//preparing variables to pass
-	/*
-	if (U_MIN < 0) {
-		U_MIN = 0;
-	}
-	if (V_MIN < 0) {
-		V_MIN = 0;
-	}
-	if (U_MAX > 255) {
-		U_MAX = 255;
-	}
-	if (V_MAX > 255) {
-		V_MAX = 255;
-	}
-
-	*/
-
-	//dealing with U component
-	if ((U_MIN > half_int) && (U_MIN < (UVMAX - half_int)))
-	{
-		U_MIN_low = U_MIN - half_int;
-		U_MIN_high = U_MIN + half_int;
-	}
-	else
-	{
-		U_MIN_low = YUVMIN;
-		U_MIN_high = interval - 1;
-	}
-
-	if ((U_MAX > (UVMAX - interval)))
-	{
-		U_MAX_low = UVMAX - interval;
-		U_MAX_high = UVMAX;
-	}
-	else
-	{
-		U_MAX_low = U_MAX - half_int;
-		U_MAX_high = U_MAX + half_int;
-	}
-
-	/*
-
-	//taking absolute values
-
-	U_MAX_low = abs(U_MAX_low);
-	U_MAX_high = abs(U_MAX_high);
-	U_MIN_low = abs(U_MIN_low);
-	U_MIN_high = abs(U_MIN_high);
-
-	//U Component
-
-	if (U_MAX_low < U_MIN_high) { swap(U_MAX_low, U_MIN_high); }
-	if (U_MAX_low < U_MIN_low) { swap(U_MAX_low, U_MIN_low); }
-	if (U_MAX_high < U_MIN_high) { swap(U_MAX_high, U_MIN_high); }
-	if (U_MAX_high < U_MIN_low) { swap(U_MAX_high, U_MIN_low); }
-
-
-	*/
-
-	int old_U_MIN = YUVMIN;
-	int old_U_MAX = YUVMIN;
-
-	float max = 0;
-	float old_max = 0;  //all values up to this one are initialised as 0 and rewritten at first iteration
-						// DELTA to be added to denominator of max function
-						// FINE the higher the lower the level of accuracy in calibration mode
-
-	if (mode2) // when this mode enters windows are forced to be wide-open and
-	{          // as a result of this fine parameter is incresed to reduce computation weight
-		U_MAX_low = 0;
-		U_MAX_high = 255;
-		U_MIN_low = 0;
-		U_MIN_high = 255;
-
-		//fine = fine * 2; // allows faster track-back of target
-	}
-
-	delta = delta * radium + 1; // delta is computed
-	delta2 = delta;
-
-	Mat cropedImage;
-
-	for (U_MAX = U_MAX_low; U_MAX <= U_MAX_high; U_MAX = U_MAX + fine)
-	{
-		inRange(imgYUV, Scalar(Y_MIN, U_MIN, V_MIN), cv::Scalar(Y_MAX, U_MAX, V_MAX), threshold);
-		cropedImage = threshold(Rect(a, b, c, d));
-		threshold.copyTo(borderImage);
-		rectangle(borderImage, r, Scalar(0, 0, 0), -1, 8, 0);
-		inside = countNonZero(cropedImage);
-		outside = countNonZero(borderImage);
-		max = inside / (outside + delta);
-		if (max > old_max)
-		{
-			old_U_MAX = U_MAX;
-			old_max = max;
-		}
-	}
-	U_MAX = old_U_MAX;
-	old_max = 0;
-	inside = 0;
-	outside = 0;
-
-
-
-	for (U_MIN = U_MIN_low; U_MIN <= U_MIN_high; U_MIN = U_MIN + fine)
-	{
-		inRange(imgYUV, Scalar(Y_MIN, U_MIN, V_MIN), cv::Scalar(Y_MAX, U_MAX, V_MAX), threshold);
-		cropedImage = threshold(Rect(a, b, c, d));
-		threshold.copyTo(borderImage);
-		rectangle(borderImage, r, Scalar(0, 0, 0), -1, 8, 0);
-		inside = countNonZero(cropedImage);
-		outside = countNonZero(borderImage);
-		max = inside / (outside + delta);
-		if (max > old_max)
-		{
-			old_U_MIN = U_MIN;
-			old_max = max;
-		}
-
-	}
-
-	U_MIN = old_U_MIN;
-	old_max = 0;
-
-}
-
-void adjuster_V(Mat imgYUV, int delta, int fine, int interval, int radium, Rect r)
-{
-	int half_int = int(interval / 2);
-	int V_MIN_low = 0;
-	int V_MAX_low = 0;
-	int V_MIN_high = 0;
-	int V_MAX_high = 0;
-	Mat threshold;
-	Mat borderImage;
-	inside = 0;
-	outside = 0;
-
-	if ((V_MIN > half_int) && (V_MIN < (UVMAX - half_int)))
-	{
-		V_MIN_low = V_MIN - half_int;
-		V_MIN_high = V_MIN + half_int;
-	}
-	else
-	{
-		V_MIN_low = YUVMIN;
-		V_MIN_high = interval - 1;
-	}
-	if (V_MAX >(UVMAX - interval))
-	{
-		V_MAX_low = UVMAX - interval;
-		V_MAX_high = UVMAX;
-	}
-	else
-	{
-		V_MAX_low = V_MAX - half_int;
-		V_MAX_high = V_MAX + half_int;
-	}
-
-	int old_V_MIN = 0;
-	int old_V_MAX = 0;
-
-	float max = 0;
-	float old_max = 0;  //all values up to this one are initialised as 0 and rewritten at first iteration
-							// DELTA to be added to denominator of max function
-							// FINE the higher the lower the level of accuracy in calibration mode
-
-	if (mode2)
-	{	// when this mode enters windows are forced to be wide-open and
-		// as a result of this fine parameter is incresed to reduce computation weight
-		V_MAX_low = 0;
-		V_MAX_high = 255;
-		V_MIN_low = 0;
-		V_MIN_high = 255;
-		//fine = fine * 2;
-	}
-
-	//------------------------------delta is computed---------
-	delta = delta * radium  + 1;
-	delta2 = delta;
-	//---------------------------------------------------------------------------
-	Mat cropedImage;
-
-	for (V_MAX = V_MAX_low; V_MAX <= V_MAX_high; V_MAX = V_MAX + fine)
-	{
-		inRange(imgYUV, Scalar(Y_MIN, U_MIN, V_MIN), cv::Scalar(Y_MAX, U_MAX, V_MAX), threshold);
-		cropedImage = threshold(Rect(a, b, c, d));
-		threshold.copyTo(borderImage);
-		rectangle(borderImage, r, Scalar(0, 0, 0), -1, 8, 0);
-		inside = countNonZero(cropedImage);
-		outside = countNonZero(borderImage);
-		max = inside / (outside + delta);
-		if (max > old_max)
-		{
-			old_V_MAX = V_MAX;
-			old_max = max;
-		}
-	}
-	V_MAX = old_V_MAX;
-	old_max = 0;
-	inside = 0;
-	outside = 0;
-
-	for (V_MIN = V_MIN_low; V_MIN <= V_MIN_high; V_MIN = V_MIN + fine)
-	{
-		inRange(imgYUV, Scalar(Y_MIN, U_MIN, V_MIN), cv::Scalar(Y_MAX, U_MAX, V_MAX), threshold);
-		cropedImage = threshold(Rect(a, b, c, d));
-		threshold.copyTo(borderImage);
-		rectangle(borderImage, r, Scalar(0, 0, 0), -1, 8, 0);
-		inside = countNonZero(cropedImage);
-		outside = countNonZero(borderImage);
-		max = inside / (outside + delta);
-		if (max > old_max)
-		{
-			old_V_MIN = V_MIN;
-			old_max = max;
-		}
-	}
-
-	V_MIN = old_V_MIN;
-	old_max = 0;
-	Y_MAX = 255;
-	Y_MIN = 0;
-	//selctor for mode2, when activated it will force wide open bands and a less fine adjusting
-	//not to reduce performace of the runnning programme. Mode 2 is entered only when U and V both collapse.
-	//if (Y_MAX == 0) {
-}
-
-// groups together and manages all the adjusting functions
-void facendi(Mat imgYUV, Mat imgOriginal, int range, int fine, int x, int y)
-{
-	int multiplier = 2;
-	c = radium * multiplier + window_base;
-	if (c > 460)
-	{    //limits maximum size of adjusting rectangle
-		c = 460;
-	}
-
-	d = c;
-	a = (640 - c) / 2;
-	b = (480 - c) / 2;
-	Rect r = Rect(a, b, c, d);
-	rectangle(imgOriginal, r, Scalar(0, 0, 255), 5, 8, 0);
-	int x_low = a + radium;
-	int y_low = b + radium;
-	int x_high = a + c - radium ;
-	int y_high = b + d - radium;
-	int x_now = x  ;
-	int y_now = y  ;
-	int adj = 0;
-	putText(imgOriginal, "X: " + std::to_string(x_low) + "/"+ std::to_string(x_now) + "/" + std::to_string(x_high), Point(10, 300), 1, 1, Scalar(0, 0, 255), 2);
-	putText(imgOriginal, "Y: " + std::to_string(y_low) + "/" + std::to_string(y_now) + "/" + std::to_string(y_high), Point(10, 320), 1, 1, Scalar(0, 0, 255), 2);
-
-	if (counthere == 0)
-	{
-		counthere = 4;
-		if ((x_now > x_low) && (x_now < x_high))
-		{
-			if ((y_now > y_low) && (y_now < y_high))
-			{
-				adj = 1 ;
-			}
-		}
-	}
-
-	counthere--;
-
-	if (lockA > 3)
-	{
-		adj = 1;
-		window_base = 350;
-		fine = 10;
-	}
-	else
-	{
-		window_base = 120;
-	}
-	if (adj == 1)
-	{
-		adjuster_U(imgYUV, 1, fine, range, radium, r);
-		putText(imgOriginal, "Adjstusting__U", Point(0, 200), 1, 1, Scalar(0, 0, 255), 2);
-		adjuster_V(imgYUV, 1, fine, range, radium, r);
-		putText(imgOriginal, "Adjstusting__V", Point(0, 220), 1, 1, Scalar(0, 0, 255), 2);
-	}
-}
-
-
+void targetAquired(Mat &imgOriginal, Mat &threshold, VideoCapture capWebcam, char charCheckForEscKey);
+void checkturn(int x, int &drift_Turn); // x-axis
+void checkturn2(int y, int &drift_Turn2); // y-axis
+void adjuster_U(Mat imgYUV, int delta, int fine, int interval, int radium, Rect r);
+void adjuster_V(Mat imgYUV, int delta, int fine, int interval, int radium, Rect r);
+void facendi(Mat imgYUV, Mat imgOriginal, int range, int fine, int x, int y);
 
 int main()
 {
-	if (true) //arduino.isConnected()
-	{
-		std::cout << "Connection Established\n";
-	}
-	else
-	{
-		std::cout << "ERROR, check port name\n";
-	}
+	VideoCapture capWebcam(WEBCAM); // Declare a VideoCapture object and associate to webcam, 0 => use 1st webcam
 
-	VideoCapture capWebcam(0); // Declare a VideoCapture object and associate to webcam, 0 => use 1st webcam
-	if (capWebcam.isOpened() == false) // Check if VideoCapture object was associated to webcam successfully
-	{
-		perror("Program Failure Information");
-		cout << "\nError: Could not access webcam\n"; // if not, print error message to cout
-		return(-1);
-	}
-	else
+	if (capWebcam.isOpened() == true) // Check if VideoCapture object was associated to webcam successfully
 	{
 		capWebcam.set(CAP_PROP_FRAME_WIDTH, frameWidth);
 		capWebcam.set(CAP_PROP_FRAME_HEIGHT, frameHeight);
-		std::cout << "Camera Connected and resolution set to " << frameWidth << "*" << frameHeight << "\n";
+		std::cout << "Camera Connected and resolution set to " << frameWidth << "*" << frameHeight << " = " << frameHeight*frameWidth << " Pixels (" << ((double)frameHeight*(double)frameWidth/307200.0) << " Complexity)\n";
 	}
-	std::cout << "\n";
+	else
+	{
+		perror("STRUAN: Camera not connected, check webcam is connected and #define WEBCAM is set to 0 or 1. COMPUTER");
+		return -1;
+	}
+
+	if (false) //arduino.isConnected()
+	{
+		arduinoConnected = true;
+		std::cout << "Arduino Connection Established\n";
+	}
+	else
+	{
+		arduinoConnected = false;
+		std::cout << "Arduino Connection Failed\n";
+		std::cout << "Camera movement is disabled\n";
+		perror("STRUAN: Arduino port name is likely incorrect, or Arduino is not connected.\nCOMPUTER");
+	}
 
 	double Kp{0.03};
 	double Ki{1.0};
@@ -704,29 +194,22 @@ int main()
 	int radius = 0;
 	int bufferX[4];
 	int bufferY[4];
-	//float ratio = 0;
+	//double ratio = 0;
 	char charCheckForEscKey = 0;
-
-	std::cout << "HERE2\n";
 
 	targetAquired(imgOriginal, threshold, capWebcam, charCheckForEscKey);
 
-	std::cout << "HERE3\n";
-
-	cout << "Target found";
+	std::cout << "Target found";
 	timer.setInterCheck(100);
 
-	std::cout << "HERE4\n";
-
 	namedWindow("Threshold", WINDOW_NORMAL);
-	namedWindow("imgOriginal", WINDOW_NORMAL); //  CV_WINDOW_NORMAL which allows resizing the window
-
-	std::cout << "HERE5\n";
+	namedWindow("imgOriginal", WINDOW_NORMAL); // CV_WINDOW_NORMAL which allows resizing the window
 
 	auto time_begin = std::chrono::high_resolution_clock::now();
 	auto time_start = std::chrono::high_resolution_clock::now();
 	auto time_end = std::chrono::high_resolution_clock::now();
 
+	// Main loop
 	while (charCheckForEscKey != '0' && capWebcam.isOpened())
 	{
 		time_begin = std::chrono::high_resolution_clock::now();
@@ -738,7 +221,6 @@ int main()
 		std::cout << "capWebcam: " << printFormattedTime(time_start, time_end) << "\n";
 
 		time_start = std::chrono::high_resolution_clock::now();
-
 
 		GaussianBlur(imgOriginal, imgOriginal, cv::Size(5, 5), 0);
 
@@ -766,7 +248,6 @@ int main()
 				mode2 = 0;
 			}
 		}
-
 
 		time_start = std::chrono::high_resolution_clock::now();
 
@@ -851,7 +332,7 @@ int main()
 
 	destroyAllWindows();
 	std::cout << "Finished\n";
-	return (0);
+	return 0;
 }
 
 std::string printFormattedTime(std::chrono::high_resolution_clock::time_point time_start, std::chrono::high_resolution_clock::time_point time_end) // XSTRUANCHECKED
@@ -945,7 +426,6 @@ void displayDirection(int x, int y, int* bufferX, int* bufferY) // Calculates di
 	}
 	else{counter++;}
 }
-
 
 // TO BE CHECKED
 
@@ -1166,5 +646,513 @@ int trackFilteredObject(int &x, int &y, int &radius, Mat threshold, Mat &cameraF
 	else
 	{
 		return 0;
+	}
+}
+
+void targetAquired(Mat &imgOriginal, Mat &threshold, VideoCapture capWebcam, char charCheckForEscKey)
+{
+	std::cout << "HERE2.1\n";
+	bool useMorphOps = true;
+	Mat imgYUV;
+
+	while (charCheckForEscKey != 27 && capWebcam.isOpened())
+	{		// until the Esc key is pressed or webcam connection is lost
+		bool blnFrameReadSuccessfully = capWebcam.read(imgOriginal);		// get next frame
+
+		if (!blnFrameReadSuccessfully || imgOriginal.empty())
+		{		// if frame not read successfully
+			std::cout << "error: frame not read from webcam\n";	// print error message to std out
+			break;	// and jump out of while loop
+		}
+
+		GaussianBlur(imgOriginal, imgOriginal, Size(5, 5), 0);
+
+		cvtColor(imgOriginal, imgYUV, COLOR_RGB2YUV); //XCHANGE COLOR_RGB2YCrCb > COLOR_RGB2HSV
+
+		Rect r = Rect(160, 160, 320, 160);                       //draws rectangle at start
+		rectangle(imgOriginal, r, Scalar(75, 0, 255), 5, 8, 0);
+		putText(imgOriginal,"Object identification" , Point(10, 50), 2, 1, Scalar(75, 0, 255), 2);
+		namedWindow("imgOriginal", WINDOW_NORMAL);	// note: you can use CV_WINDOW_NORMAL which allows resizing the window
+		namedWindow("imgYUV", WINDOW_NORMAL);
+
+		imshow("imgOriginal", imgOriginal);
+		imshow("imgYUV", imgYUV);
+
+		Mat borderImage;
+
+		createTrackbars(); //returns startProgram = 1 when button is pressed
+		//Begin of calibration function ---------only run once at startup---------------------------------------
+		if (startProgram == true)
+		{
+			c = 320;
+			d = 160;
+			int old_U_MIN = 0;
+			int old_U_MAX = 0;
+			int old_V_MIN = 0;
+			int old_V_MAX = 0;
+			//int old_Y_MIN = 0;
+			//int old_Y_MAX = 0;
+			float old_max = 0;  //all values up to this one are initialised as 0 and rewritten at first iteration
+			int delta = 100;    //to be added to denominator of max function
+			int fine = 2;       // the higher, the lower the level of accuracy in calibration mode
+
+			float max = 0;
+			inside = 0;
+			outside = 0;
+
+			for (U_MIN = YUVMIN; U_MIN <= UVMAX; U_MIN = U_MIN + fine)
+			{
+				inRange(imgYUV, Scalar(Y_MIN, U_MIN, V_MIN), cv::Scalar(Y_MAX, U_MAX, V_MAX), threshold);
+				Mat cropedImage = threshold(Rect(160, 160, c, d));
+				threshold.copyTo(borderImage);
+				rectangle(borderImage, r, Scalar(0, 0, 0), -1, 8, 0);
+				inside = countNonZero(cropedImage);
+				outside = countNonZero(borderImage);
+				max = inside/(outside + delta);
+				if (max > old_max)
+				{
+					old_U_MIN = U_MIN;
+					old_max = max;
+				}
+			}
+
+			U_MIN = old_U_MIN;
+			old_max = 0;
+			inside = 0;
+			outside = 0;
+
+
+			for (U_MAX = UVMAX; U_MAX >= YUVMIN; U_MAX = U_MAX - fine)
+			{
+				inRange(imgYUV, Scalar(Y_MIN, U_MIN, V_MIN), cv::Scalar(Y_MAX, U_MAX, V_MAX), threshold);
+				Mat cropedImage = threshold(Rect(160, 160, c, d));
+				threshold.copyTo(borderImage);
+				rectangle(borderImage, r, Scalar(0, 0, 0), -1, 8, 0);
+				inside = countNonZero(cropedImage);
+				outside = countNonZero(borderImage);
+				max = inside / (outside + delta);
+				if (max > old_max)
+				{
+					old_U_MAX = U_MAX;
+					old_max = max;
+				}
+			}
+
+			U_MAX = old_U_MAX;
+			old_max = 0;
+			inside = 0;
+			outside = 0;
+
+			for (V_MIN = YUVMIN; V_MIN <= UVMAX; V_MIN = V_MIN + fine)
+			{
+				inRange(imgYUV, Scalar(Y_MIN, U_MIN, V_MIN), cv::Scalar(Y_MAX, U_MAX, V_MAX), threshold);
+				Mat cropedImage = threshold(Rect(160, 160, c, d));
+				threshold.copyTo(borderImage);
+				rectangle(borderImage, r, Scalar(0, 0, 0), -1, 8, 0);
+				inside = countNonZero(cropedImage);
+				outside = countNonZero(borderImage);
+				max = inside / (outside + delta);
+				if (max > old_max)
+				{
+					old_V_MIN = V_MIN;
+					old_max = max;
+				}
+			}
+
+			V_MIN = old_V_MIN;
+			old_max = 0;
+			inside = 0;
+			outside = 0;
+
+			for (V_MAX = UVMAX; V_MAX >= YUVMIN; V_MAX = V_MAX - fine)
+			{
+				inRange(imgYUV, Scalar(Y_MIN, U_MIN, V_MIN), cv::Scalar(Y_MAX, U_MAX, V_MAX), threshold);
+				Mat cropedImage = threshold(Rect(160, 160, c, d));
+				threshold.copyTo(borderImage);
+				rectangle(borderImage, r, Scalar(0, 0, 0), -1, 8, 0);
+				inside = countNonZero(cropedImage);
+				outside = countNonZero(borderImage);
+				max = inside / (outside + delta);
+				if (max > old_max)
+				{
+					old_V_MAX = V_MAX;
+					old_max = max;
+				}
+			}
+			V_MAX = old_V_MAX;
+			old_max = 0;
+			Y_MIN = 0;
+			Y_MAX = 255;
+
+			found = 1;  //this allows to move on from calibration to tracking mode
+
+		//end of calibration function ------------------------------------------
+		}
+		inRange(imgYUV, Scalar(Y_MIN, U_MIN, V_MIN), cv::Scalar(Y_MAX, U_MAX, V_MAX), threshold);
+		//produces image with the calibrate paramters that have been produced
+
+		//imshow("cropedImage", cropedImage); //Ale
+		//imshow("borderImage", borderImage); //Ale
+		//end of ale's part
+
+		//Mat Gaussian = threshold.clone();
+		//Mat Dilate = threshold.clone();
+		//GaussianBlur(Gaussian, Gaussian, Size(5, 5), 0);
+
+		if (useMorphOps)
+		{
+			morphOps(threshold);
+		}
+		/*
+		Mat Combo = Dilate.clone();
+		GaussianBlur(Combo, Combo, Size(5, 5), 0);
+		*/
+		namedWindow("Threshold", WINDOW_NORMAL);
+		// putText(threshold, "Ratio: " + std::to_string(max), Point(0, 350), 1, 1, Scalar(255, 255, 255), 2);
+		imshow("Threshold", threshold);
+		/*
+		namedWindow("Gaussian", CV_WINDOW_AUTOSIZE);
+		imshow("Gaussian", Gaussian);
+
+		namedWindow("Dilate", CV_WINDOW_AUTOSIZE);
+		imshow("Dilate", Dilate);
+
+		namedWindow("Combo", CV_WINDOW_AUTOSIZE);
+		imshow("Combo", Combo);
+		*/
+
+		charCheckForEscKey = waitKey(30);			// delay (in ms) and get key press, if any
+		if (found == 1)
+		{
+			destroyAllWindows();
+			return;
+		}
+	}
+}
+
+void checkturn(int x, int &drift_Turn)  // x-axis
+{
+	int old_drift = drift_Turn;
+	int change_Drift;
+
+	if (objectFound == false)
+	{
+		//arduino.writeSerialPort(mapTurn(11), 2);
+	}
+	if (objectFound == true)
+	{
+		drift_Turn = PID_turn1.ComputePID_output(320, x);
+		change_Drift = drift_Turn - old_drift;
+		if (change_Drift != 0)
+		{
+			//arduino.writeSerialPort(mapTurn(drift_Turn), 2);
+		}
+	}
+}
+
+void checkturn2(int y, int &drift_Turn2)     // y-axis
+{
+	int old_drift2 = drift_Turn2;
+	int change_Drift2;
+
+	if (objectFound == false)
+	{
+		//arduino.writeSerialPort(mapTurn(11), 2);
+	}
+	if (objectFound == true)
+	{
+		drift_Turn2 = PID_turn2.ComputePID_output(240, y);
+		change_Drift2 = drift_Turn2 - old_drift2;
+		if (change_Drift2 != 0)
+		{
+			//arduino.writeSerialPort(mapTurn2(drift_Turn2), 2);
+		}
+	}
+}
+
+void adjuster_U(Mat imgYUV, int delta, int fine, int interval, int radium, Rect r)
+{
+	int half_int = int(interval / 2);
+	int U_MIN_low = 0;
+	int U_MAX_low = 0;
+	int U_MIN_high = 0;
+	int U_MAX_high = 0;
+	inside = 0;
+	outside = 0;
+	Mat threshold;
+	Mat borderImage;
+	//preparing variables to pass
+	/*
+	if (U_MIN < 0) {
+		U_MIN = 0;
+	}
+	if (V_MIN < 0) {
+		V_MIN = 0;
+	}
+	if (U_MAX > 255) {
+		U_MAX = 255;
+	}
+	if (V_MAX > 255) {
+		V_MAX = 255;
+	}
+	*/
+
+	//dealing with U component
+	if ((U_MIN > half_int) && (U_MIN < (UVMAX - half_int)))
+	{
+		U_MIN_low = U_MIN - half_int;
+		U_MIN_high = U_MIN + half_int;
+	}
+	else
+	{
+		U_MIN_low = YUVMIN;
+		U_MIN_high = interval - 1;
+	}
+
+	if ((U_MAX > (UVMAX - interval)))
+	{
+		U_MAX_low = UVMAX - interval;
+		U_MAX_high = UVMAX;
+	}
+	else
+	{
+		U_MAX_low = U_MAX - half_int;
+		U_MAX_high = U_MAX + half_int;
+	}
+	/*
+
+	//taking absolute values
+
+	U_MAX_low = abs(U_MAX_low);
+	U_MAX_high = abs(U_MAX_high);
+	U_MIN_low = abs(U_MIN_low);
+	U_MIN_high = abs(U_MIN_high);
+
+	//U Component
+
+	if (U_MAX_low < U_MIN_high) { swap(U_MAX_low, U_MIN_high); }
+	if (U_MAX_low < U_MIN_low) { swap(U_MAX_low, U_MIN_low); }
+	if (U_MAX_high < U_MIN_high) { swap(U_MAX_high, U_MIN_high); }
+	if (U_MAX_high < U_MIN_low) { swap(U_MAX_high, U_MIN_low); }
+	*/
+
+	int old_U_MIN = YUVMIN;
+	int old_U_MAX = YUVMIN;
+
+	float max = 0;
+	float old_max = 0;  //all values up to this one are initialised as 0 and rewritten at first iteration
+						// DELTA to be added to denominator of max function
+						// FINE the higher the lower the level of accuracy in calibration mode
+
+	if (mode2) // when this mode enters windows are forced to be wide-open and
+	{          // as a result of this fine parameter is incresed to reduce computation weight
+		U_MAX_low = 0;
+		U_MAX_high = 255;
+		U_MIN_low = 0;
+		U_MIN_high = 255;
+		//fine = fine * 2; // allows faster track-back of target
+	}
+
+	delta = delta * radium + 1; // delta is computed
+	delta2 = delta;
+
+	Mat cropedImage;
+
+	for (U_MAX = U_MAX_low; U_MAX <= U_MAX_high; U_MAX = U_MAX + fine)
+	{
+		inRange(imgYUV, Scalar(Y_MIN, U_MIN, V_MIN), cv::Scalar(Y_MAX, U_MAX, V_MAX), threshold);
+		cropedImage = threshold(Rect(a, b, c, d));
+		threshold.copyTo(borderImage);
+		rectangle(borderImage, r, Scalar(0, 0, 0), -1, 8, 0);
+		inside = countNonZero(cropedImage);
+		outside = countNonZero(borderImage);
+		max = inside / (outside + delta);
+		if (max > old_max)
+		{
+			old_U_MAX = U_MAX;
+			old_max = max;
+		}
+	}
+	U_MAX = old_U_MAX;
+	old_max = 0;
+	inside = 0;
+	outside = 0;
+	for (U_MIN = U_MIN_low; U_MIN <= U_MIN_high; U_MIN = U_MIN + fine)
+	{
+		inRange(imgYUV, Scalar(Y_MIN, U_MIN, V_MIN), cv::Scalar(Y_MAX, U_MAX, V_MAX), threshold);
+		cropedImage = threshold(Rect(a, b, c, d));
+		threshold.copyTo(borderImage);
+		rectangle(borderImage, r, Scalar(0, 0, 0), -1, 8, 0);
+		inside = countNonZero(cropedImage);
+		outside = countNonZero(borderImage);
+		max = inside / (outside + delta);
+		if (max > old_max)
+		{
+			old_U_MIN = U_MIN;
+			old_max = max;
+		}
+	}
+
+	U_MIN = old_U_MIN;
+	old_max = 0;
+}
+
+void adjuster_V(Mat imgYUV, int delta, int fine, int interval, int radium, Rect r)
+{
+	int half_int = int(interval / 2);
+	int V_MIN_low = 0;
+	int V_MAX_low = 0;
+	int V_MIN_high = 0;
+	int V_MAX_high = 0;
+	Mat threshold;
+	Mat borderImage;
+	inside = 0;
+	outside = 0;
+
+	if ((V_MIN > half_int) && (V_MIN < (UVMAX - half_int)))
+	{
+		V_MIN_low = V_MIN - half_int;
+		V_MIN_high = V_MIN + half_int;
+	}
+	else
+	{
+		V_MIN_low = YUVMIN;
+		V_MIN_high = interval - 1;
+	}
+	if (V_MAX >(UVMAX - interval))
+	{
+		V_MAX_low = UVMAX - interval;
+		V_MAX_high = UVMAX;
+	}
+	else
+	{
+		V_MAX_low = V_MAX - half_int;
+		V_MAX_high = V_MAX + half_int;
+	}
+
+	int old_V_MIN = 0;
+	int old_V_MAX = 0;
+
+	float max = 0;
+	float old_max = 0;  //all values up to this one are initialised as 0 and rewritten at first iteration
+							// DELTA to be added to denominator of max function
+							// FINE the higher the lower the level of accuracy in calibration mode
+
+	if (mode2)
+	{	// when this mode enters windows are forced to be wide-open and
+		// as a result of this fine parameter is incresed to reduce computation weight
+		V_MAX_low = 0;
+		V_MAX_high = 255;
+		V_MIN_low = 0;
+		V_MIN_high = 255;
+		//fine = fine * 2;
+	}
+
+	//------------------------------delta is computed---------
+	delta = delta * radium  + 1;
+	delta2 = delta;
+	//---------------------------------------------------------------------------
+	Mat cropedImage;
+
+	for (V_MAX = V_MAX_low; V_MAX <= V_MAX_high; V_MAX = V_MAX + fine)
+	{
+		inRange(imgYUV, Scalar(Y_MIN, U_MIN, V_MIN), cv::Scalar(Y_MAX, U_MAX, V_MAX), threshold);
+		cropedImage = threshold(Rect(a, b, c, d));
+		threshold.copyTo(borderImage);
+		rectangle(borderImage, r, Scalar(0, 0, 0), -1, 8, 0);
+		inside = countNonZero(cropedImage);
+		outside = countNonZero(borderImage);
+		max = inside / (outside + delta);
+		if (max > old_max)
+		{
+			old_V_MAX = V_MAX;
+			old_max = max;
+		}
+	}
+	V_MAX = old_V_MAX;
+	old_max = 0;
+	inside = 0;
+	outside = 0;
+
+	for (V_MIN = V_MIN_low; V_MIN <= V_MIN_high; V_MIN = V_MIN + fine)
+	{
+		inRange(imgYUV, Scalar(Y_MIN, U_MIN, V_MIN), cv::Scalar(Y_MAX, U_MAX, V_MAX), threshold);
+		cropedImage = threshold(Rect(a, b, c, d));
+		threshold.copyTo(borderImage);
+		rectangle(borderImage, r, Scalar(0, 0, 0), -1, 8, 0);
+		inside = countNonZero(cropedImage);
+		outside = countNonZero(borderImage);
+		max = inside / (outside + delta);
+		if (max > old_max)
+		{
+			old_V_MIN = V_MIN;
+			old_max = max;
+		}
+	}
+
+	V_MIN = old_V_MIN;
+	old_max = 0;
+	Y_MAX = 255;
+	Y_MIN = 0;
+	//selctor for mode2, when activated it will force wide open bands and a less fine adjusting
+	//not to reduce performace of the runnning programme. Mode 2 is entered only when U and V both collapse.
+	//if (Y_MAX == 0) {
+}
+
+// groups together and manages all the adjusting functions
+void facendi(Mat imgYUV, Mat imgOriginal, int range, int fine, int x, int y)
+{
+	int multiplier = 2;
+	c = radium * multiplier + window_base;
+	if (c > 460)
+	{    //limits maximum size of adjusting rectangle
+		c = 460;
+	}
+
+	d = c;
+	a = (640 - c) / 2;
+	b = (480 - c) / 2;
+	Rect r = Rect(a, b, c, d);
+	rectangle(imgOriginal, r, Scalar(0, 0, 255), 5, 8, 0);
+	int x_low = a + radium;
+	int y_low = b + radium;
+	int x_high = a + c - radium ;
+	int y_high = b + d - radium;
+	int x_now = x  ;
+	int y_now = y  ;
+	int adj = 0;
+	putText(imgOriginal, "X: " + std::to_string(x_low) + "/"+ std::to_string(x_now) + "/" + std::to_string(x_high), Point(10, 300), 1, 1, Scalar(0, 0, 255), 2);
+	putText(imgOriginal, "Y: " + std::to_string(y_low) + "/" + std::to_string(y_now) + "/" + std::to_string(y_high), Point(10, 320), 1, 1, Scalar(0, 0, 255), 2);
+
+	if (counthere == 0)
+	{
+		counthere = 4;
+		if ((x_now > x_low) && (x_now < x_high))
+		{
+			if ((y_now > y_low) && (y_now < y_high))
+			{
+				adj = 1 ;
+			}
+		}
+	}
+
+	counthere--;
+
+	if (lockA > 3)
+	{
+		adj = 1;
+		window_base = 350;
+		fine = 10;
+	}
+	else
+	{
+		window_base = 120;
+	}
+	if (adj == 1)
+	{
+		adjuster_U(imgYUV, 1, fine, range, radium, r);
+		putText(imgOriginal, "Adjstusting__U", Point(0, 200), 1, 1, Scalar(0, 0, 255), 2);
+		adjuster_V(imgYUV, 1, fine, range, radium, r);
+		putText(imgOriginal, "Adjstusting__V", Point(0, 220), 1, 1, Scalar(0, 0, 255), 2);
 	}
 }
