@@ -15,6 +15,7 @@
 #include <iostream>
 #include <deque>
 #include <chrono>
+#include <fstream>
 
 // OpenCV libraries
 
@@ -55,6 +56,7 @@ const int dilationMagnitude = 16;
 // Calculated Globals
 
 const int frameWidth = (int)(aspectRatio * (double)frameHeight);
+const int fps = 120;
 const int minimumObjectArea = frameHeight * frameWidth / 1000;
 const int maximumObjectArea = frameHeight * frameWidth / 1.5;
 
@@ -66,6 +68,8 @@ int counter = 0; // Counter for use with direction calculation
 std::string xDirection = "NULL"; // Current X direction of tracked object
 std::string yDirection = "NULL"; // Current Y direction of tracked object
 int dx{0}, dy{0}; // Current X and Y direction of object numerically
+
+#define SEPERATOR ","
 
 // Globals
 
@@ -145,12 +149,54 @@ void facendi(Mat imgYUV, Mat imgOriginal, int range, int fine, int x, int y);
 int main()
 {
 	VideoCapture capWebcam(WEBCAM); // Declare a VideoCapture object and associate to webcam, 0 => use 1st webcam
+	ofstream statsFile; // File to contain performance data.
+
+	bool fileWrite = false;
+
+	statsFile.open("performanceLog.csv",ios::out | ios::trunc);
+
+	if (statsFile.is_open() == true) // Check if performance file was opened
+	{
+		fileWrite = true;
+		statsFile << "ObjectFound" << SEPERATOR << "WebcamRead" << SEPERATOR << "GaussianBlur" << SEPERATOR << "ColourConversion" << SEPERATOR << "SelectMode" << SEPERATOR << "InRangeMorphOpsDisplayDirection" << SEPERATOR << "TrackFilteredObject" << SEPERATOR << "PIDDist" << SEPERATOR << "Facendi" << SEPERATOR << "PutText" << SEPERATOR << "ShowImage" << SEPERATOR << "TimeWaitKey";
+		statsFile << "\n";
+	}
+	else
+	{
+		perror("STRUAN: File not opened, check filesystem is accessible to program. COMPUTER");
+		fileWrite = false;
+	}
 
 	if (capWebcam.isOpened() == true) // Check if VideoCapture object was associated to webcam successfully
 	{
+		std::cout << capWebcam.get(CAP_PROP_FPS) << " FPS(GET)\n";
+		std::cout << capWebcam.get(CAP_PROP_FRAME_WIDTH) << " Width(GET)\n";
+		std::cout << capWebcam.get(CAP_PROP_FRAME_HEIGHT) << " Height(GET)\n";
+
+		int fourcc = capWebcam.get(CAP_PROP_FOURCC);
+		std::string fourcc_str = format("%c%c%c%c", fourcc & 255, (fourcc >> 8) & 255, (fourcc >> 16) & 255, (fourcc >> 24) & 255);
+
+		std::cout << fourcc_str << " FOURCC(GET)\n";
+		std::cout << capWebcam.get(CAP_PROP_CONVERT_RGB) << " RGB Flag(GET)\n";
+		std::cout << capWebcam.get(CAP_PROP_FORMAT) << " Mat Type(GET)\n\n\n";
+
+		capWebcam.set(CAP_PROP_FOURCC, VideoWriter::fourcc('M', 'J', 'P', 'G'));
 		capWebcam.set(CAP_PROP_FRAME_WIDTH, frameWidth);
 		capWebcam.set(CAP_PROP_FRAME_HEIGHT, frameHeight);
-		std::cout << "Camera Connected and resolution set to " << frameWidth << "*" << frameHeight << " = " << frameHeight*frameWidth << " Pixels (" << ((double)frameHeight*(double)frameWidth/307200.0) << " Complexity)\n";
+		capWebcam.set(CAP_PROP_FPS, fps);
+
+
+		std::cout << capWebcam.get(CAP_PROP_FPS) << " FPS(SET)\n";
+		std::cout << capWebcam.get(CAP_PROP_FRAME_WIDTH) << " Width(SET)\n";
+		std::cout << capWebcam.get(CAP_PROP_FRAME_HEIGHT) << " Height(SET)\n";
+
+		fourcc = capWebcam.get(CAP_PROP_FOURCC);
+		fourcc_str = format("%c%c%c%c", fourcc & 255, (fourcc >> 8) & 255, (fourcc >> 16) & 255, (fourcc >> 24) & 255);
+
+		std::cout << fourcc_str << " FOURCC(SET)\n";
+		std::cout << capWebcam.get(CAP_PROP_CONVERT_RGB) << " RGB Flag(SET)\n";
+		std::cout << capWebcam.get(CAP_PROP_FORMAT) << " Mat Type(SET)\n\n\n";
+		std::cout << "Camera Connected and resolution set to " << frameWidth << "*" << frameHeight << " = " << frameHeight*frameWidth << " Pixels (" << ((double)frameHeight*(double)frameWidth/307200.0) << " Complexity)\n\n\n";
 	}
 	else
 	{
@@ -209,7 +255,10 @@ int main()
 	auto time_start = std::chrono::high_resolution_clock::now();
 	auto time_end = std::chrono::high_resolution_clock::now();
 
+	std::string print[11];
 	// Main loop
+
+	std::cout << "Starting Main Loop\n";
 	while (charCheckForEscKey != '0' && capWebcam.isOpened())
 	{
 		time_begin = std::chrono::high_resolution_clock::now();
@@ -218,22 +267,24 @@ int main()
 		capWebcam.read(imgOriginal);
 
 		time_end = std::chrono::high_resolution_clock::now();
-		std::cout << "capWebcam: " << printFormattedTime(time_start, time_end) << "\n";
+		print[0] = std::to_string(getNanoTime(time_start, time_end));
 
 		time_start = std::chrono::high_resolution_clock::now();
 
 		GaussianBlur(imgOriginal, imgOriginal, cv::Size(5, 5), 0);
 
 		time_end = std::chrono::high_resolution_clock::now();
-		std::cout << "GaussianBlur: " << printFormattedTime(time_start, time_end) << "\n";
+		print[1] = std::to_string(getNanoTime(time_start, time_end));
 
 		time_start = std::chrono::high_resolution_clock::now();
 
 		cvtColor(imgOriginal, imgYUV, COLOR_RGB2YCrCb);
 
 		time_end = std::chrono::high_resolution_clock::now();
-		std::cout << "cvtColor: " << printFormattedTime(time_start, time_end) << "\n";
+		print[2] = std::to_string(getNanoTime(time_start, time_end));
+
 		// Avoids suppression of the intervals
+		time_start = std::chrono::high_resolution_clock::now();
 
 		if (U_MAX == 16)
 		{
@@ -249,6 +300,8 @@ int main()
 			}
 		}
 
+		time_end = std::chrono::high_resolution_clock::now();
+		print[3] = std::to_string(getNanoTime(time_start, time_end));
 		time_start = std::chrono::high_resolution_clock::now();
 
 		putText(imgOriginal, " Delta: " + std::to_string(delta2), Point(0, 100), 1, 1, Scalar(0, 0, 255), 2);
@@ -260,7 +313,7 @@ int main()
 		displayDirection(x, y, bufferX, bufferY);
 
 		time_end = std::chrono::high_resolution_clock::now();
-		std::cout << "putText to displayDirection: " << printFormattedTime(time_start, time_end) << "\n";
+		print[4] = std::to_string(getNanoTime(time_start, time_end));
 
 		time_start = std::chrono::high_resolution_clock::now();
 
@@ -274,7 +327,7 @@ int main()
 		}
 
 		time_end = std::chrono::high_resolution_clock::now();
-		std::cout << "Track filtered object: " << printFormattedTime(time_start, time_end) << "\n";
+		print[5] = std::to_string(getNanoTime(time_start, time_end));
 
 		time_start = std::chrono::high_resolution_clock::now();
 
@@ -282,14 +335,14 @@ int main()
 		PID_dist(Kp, Ki, Kd, radium, 0.2); // adjusts PID values depending on radium ob object
 
 		time_end = std::chrono::high_resolution_clock::now();
-		std::cout << "piddist " << printFormattedTime(time_start, time_end) << "\n";
+		print[6] = std::to_string(getNanoTime(time_start, time_end));
 
 		time_start = std::chrono::high_resolution_clock::now();
 
 		facendi(imgYUV, imgOriginal, 20, 5, x_out, y_out);
 
 		time_end = std::chrono::high_resolution_clock::now();
-		std::cout << "facendi " << printFormattedTime(time_start, time_end) << "\n";
+		print[7] = std::to_string(getNanoTime(time_start, time_end));
 
 		time_start = std::chrono::high_resolution_clock::now();
 
@@ -305,7 +358,7 @@ int main()
 		//putText(imgOriginal, "Ratio: " + to_string((inside / (outside + delta2))), Point(25, 35), 1, 1, Scalar(0, 0, 255), 2);
 
 		time_end = std::chrono::high_resolution_clock::now();
-		std::cout << "puttext " << printFormattedTime(time_start, time_end) << "\n";
+		print[8] = std::to_string(getNanoTime(time_start, time_end));
 
 		time_start = std::chrono::high_resolution_clock::now();
 
@@ -313,7 +366,7 @@ int main()
 		imshow("Threshold", threshold);
 
 		time_end = std::chrono::high_resolution_clock::now();
-		std::cout << "imshow " << printFormattedTime(time_start, time_end) << "\n";
+		print[9] = std::to_string(getNanoTime(time_start, time_end));
 
 		time_start = std::chrono::high_resolution_clock::now();
 
@@ -326,10 +379,22 @@ int main()
 		charCheckForEscKey = cv::waitKey(10);
 
 		time_end = std::chrono::high_resolution_clock::now();
-		std::cout << "ismintimeelapsed to waitkey " << printFormattedTime(time_start, time_end) << "\n";
+		print[10] = std::to_string(getNanoTime(time_start, time_end));
 		std::cout << "FPS " << 1000000000 / getNanoTime(time_begin, time_end) << "\n\n";
+
+		if(fileWrite == true)
+		{
+			statsFile << std::to_string(objectFound) << SEPERATOR;
+			for(int_fast16_t i = 0; i < 11; ++i)
+			{
+				statsFile << print[i];
+				statsFile << SEPERATOR;
+			}
+			statsFile << "\n";
+		}
 	}
 
+	statsFile.close();
 	destroyAllWindows();
 	std::cout << "Finished\n";
 	return 0;
@@ -651,7 +716,6 @@ int trackFilteredObject(int &x, int &y, int &radius, Mat threshold, Mat &cameraF
 
 void targetAquired(Mat &imgOriginal, Mat &threshold, VideoCapture capWebcam, char charCheckForEscKey)
 {
-	std::cout << "HERE2.1\n";
 	bool useMorphOps = true;
 	Mat imgYUV;
 
