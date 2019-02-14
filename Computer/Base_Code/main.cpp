@@ -437,9 +437,12 @@ int main()
 
 		time_end = std::chrono::high_resolution_clock::now();
 		print[10] = std::to_string(getNanoTime(time_start, time_end));
+
 		std::cout << "FPS " << 1000000000 / getNanoTime(time_begin, time_end) << "\n\n";
+
 		time_end = std::chrono::high_resolution_clock::now();
 		print[11] = std::to_string(getNanoTime(time_begin, time_end));
+
 		if(statsFile.is_open())
 		{
 			statsFile << std::to_string(objectFound) << SEPERATOR;
