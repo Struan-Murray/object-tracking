@@ -16,6 +16,7 @@
 #include <deque>
 #include <chrono>
 #include <fstream>
+#include <thread>
 
 // OpenCV libraries
 
@@ -138,17 +139,12 @@ int main()
 	/* External Setup */
 	/* Camera Init */
 
-	int_fast16_t cameraCount = 0;
-
-	std::cout << "Video Size: " << sizeof(VideoCapture) << "\n";
+	int_fast16_t cameraCount = 0; // Number of cameras connected to computer.
+	VideoCapture capWebcam[64]; // Declare a VideoCapture object and associate to webcam, 0 => use 1st webcam.
 
 	std::cout << "Opening Webcam(s)...\n";
-	VideoCapture capWebcam[127]; // Declare a VideoCapture object and associate to webcam, 0 => use 1st webcam
-	while(capWebcam[cameraCount].open(cameraCount) == true){cameraCount++;}
 
-	std::cout << "\n";
-	std::cout << "Number of available cameras: " << cameraCount << "\n";
-	std::cout << "\n";
+	while(capWebcam[cameraCount].open(cameraCount) == true){cameraCount++;} // Check all webcams connected to computer and assign addresses.
 
 	if(cameraCount < 1)
 	{
@@ -156,29 +152,38 @@ int main()
 		return -1;
 	}
 
+	std::cout << "\nAVAILABLE CAMERAS\n";
+	for(int i = 0; i < 80; i++){std::cout << "-";}
+	std::cout << "\n";
+
 	for(int_fast16_t a = 0; a < cameraCount; ++a)
 	{
-		int32_t fourcc = 0;
-		std::string fourcc_str = "0000";
-
 		capWebcam[a].set(CAP_PROP_FOURCC, VideoWriter::fourcc('M', 'J', 'P', 'G'));
 		capWebcam[a].set(CAP_PROP_FRAME_HEIGHT, INT_MAX);
 		capWebcam[a].set(CAP_PROP_FRAME_WIDTH, INT_MAX);
 		capWebcam[a].set(CAP_PROP_FPS, INT_MAX);
 
-		std::cout << "Camera " << a << " Opened.\n";
+		int32_t fourcc = capWebcam[a].get(CAP_PROP_FOURCC);
+		std::string fourcc_str = format("%c%c%c%c", fourcc & 255, (fourcc >> 8) & 255, (fourcc >> 16) & 255, (fourcc >> 24) & 255);
+
+		std::cout << "CAMERA " << a << "\n";
 		std::cout << "Maximum settings are as follows:\n";
 		std::cout << "FPS: " << capWebcam[a].get(CAP_PROP_FPS) << "\n";
 		std::cout << "Resolution: " << capWebcam[a].get(CAP_PROP_FRAME_WIDTH) << "*" << capWebcam[a].get(CAP_PROP_FRAME_HEIGHT) << "\n";
-
-		fourcc = capWebcam[a].get(CAP_PROP_FOURCC);
-		fourcc_str = format("%c%c%c%c", fourcc & 255, (fourcc >> 8) & 255, (fourcc >> 16) & 255, (fourcc >> 24) & 255);
-
 		std::cout << "Camera Format: " << fourcc_str << "\n";
+
+		for(int i = 0; i < 80; i++){std::cout << "-";}
 		std::cout << "\n";
 	}
 
-	int_fast16_t selectedCamera = 0;
+	std::cout << "\n";
+
+
+
+	/* Local Setup */
+	/* Camera Init */
+
+	int_fast16_t selectedCamera = 0; // Camera selected for program to use.
 
 	if(cameraCount > 1)
 	{
@@ -194,56 +199,54 @@ int main()
 	std::cout << "Camera used = " << selectedCamera << "\n";
 	std::cout << "\n";
 
-	/* Local Setup */
-	/* Camera Init */
-
 	const int frameHeight = 480;
 	const double aspectRatio = (double)4/(double)3;
 	const int frameWidth = (int)(aspectRatio * (double)frameHeight);
-	const int fps = 120;
+	int fps = 120;
 	const int minimumObjectArea = frameHeight * frameWidth / 1000;
 	const int maximumObjectArea = frameHeight * frameWidth / 1.5;
-
-	/* History and data aquisition */
-
-	ofstream statsFile; // File pointer to contain performance data.
-	int_fast16_t bufferX[2] = {0,0}; // List of last tracked X coordinates.
-	int_fast16_t bufferY[2] = {0,0}; // List of last tracked Y coordinatess.
 
 	if (capWebcam[selectedCamera].isOpened() == true) // Check if VideoCapture object was associated to webcam successfully
 	{
 		std::cout << "Setting camera properties...\n";
-
-		int32_t fourcc = 0;
-		std::string fourcc_str = "0000";
 
 		capWebcam[selectedCamera].set(CAP_PROP_FOURCC, VideoWriter::fourcc('M', 'J', 'P', 'G'));
 		capWebcam[selectedCamera].set(CAP_PROP_FRAME_WIDTH, frameWidth);
 		capWebcam[selectedCamera].set(CAP_PROP_FRAME_HEIGHT, frameHeight);
 		capWebcam[selectedCamera].set(CAP_PROP_FPS, fps);
 
-		std::cout << "Stats have been set as follows:\n";
+		fps = capWebcam[selectedCamera].get(CAP_PROP_FPS);
+
+		int32_t fourcc = capWebcam[selectedCamera].get(CAP_PROP_FOURCC);
+		std::string fourcc_str = format("%c%c%c%c", fourcc & 255, (fourcc >> 8) & 255, (fourcc >> 16) & 255, (fourcc >> 24) & 255);
+
+		for(int i = 0; i < 80; i++){std::cout << "-";}
+		std::cout << "\n";
+
+		std::cout << "CAMERA " << selectedCamera << " stats have been set as follows:\n";
 		std::cout << "FPS: " << capWebcam[selectedCamera].get(CAP_PROP_FPS) << "\n";
 		std::cout << "Resolution: " << capWebcam[selectedCamera].get(CAP_PROP_FRAME_WIDTH) << "*" << capWebcam[selectedCamera].get(CAP_PROP_FRAME_HEIGHT) << "\n";
-
-		fourcc = capWebcam[selectedCamera].get(CAP_PROP_FOURCC);
-		fourcc_str = format("%c%c%c%c", fourcc & 255, (fourcc >> 8) & 255, (fourcc >> 16) & 255, (fourcc >> 24) & 255);
-
 		std::cout << "Camera Format: " << fourcc_str << "\n";
 		std::cout << "RGB Flag: " << capWebcam[selectedCamera].get(CAP_PROP_CONVERT_RGB) << "\n";
-		std::cout << "Brightness: " << capWebcam[selectedCamera].get(CAP_PROP_BRIGHTNESS) << "\n";
-		std::cout << "Contrast: " << capWebcam[selectedCamera].get(CAP_PROP_CONTRAST) << "\n";
-		std::cout << "Saturation: " << capWebcam[selectedCamera].get(CAP_PROP_SATURATION) << "\n";
-		std::cout << "Hue: " << capWebcam[selectedCamera].get(CAP_PROP_HUE) << "\n";
-		std::cout << "Complexity: " << ((double)frameHeight*(double)frameWidth/307200.0) << "\n\n";
+		std::cout << "Complexity: " << ((double)frameHeight*(double)frameWidth/307200.0) << "\n";
+
+		for(int i = 0; i < 80; i++){std::cout << "-";}
+		std::cout << "\n\n";
 	}
 	else
 	{
-
+		perror("STRUAN: Camera failed to open, quitting.\nCOMPUTER");
+		return -2;
 	}
 
-	std::cout << "Opening performance file...\n";
+
+
+	/* Log File initialisation */
+
+	ofstream statsFile; // File pointer to contain performance data.
 	intmax_t programStartTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+
+	std::cout << "Opening performance file...\n";
 	statsFile.open("Log_" + std::to_string(programStartTime) + ".csv",ios::out | ios::trunc);
 
 	if (statsFile.is_open() == true) // Check if performance file was opened
@@ -263,18 +266,33 @@ int main()
 	else
 	{
 		perror("STRUAN: File not opened, check filesystem is accessible to program.\nCOMPUTER");
+		return -3;
 	}
 
+
+
+	/* Arduino connection */
+
+	std::cout << "Connecting to arduino...\n";
 	//SerialPort arduino("\\\\.\\COM3");
 
 	if (false /*arduino.isConnected()/**/)
 	{
-		std::cout << "Arduino Connection Established\n";
+		std::cout << "Arduino Connection Established\n\n";
 	}
 	else
 	{
 		perror("STRUAN: Arduino not connected. Camera movement is disabled. Port name is likely incorrect, or Arduino is not connected.\nCOMPUTER");
+		std::cout << "\n";
 	}
+
+
+
+	/* History and data aquisition */
+
+	int_fast16_t bufferX[2] = {0,0}; // List of last tracked X coordinates.
+	int_fast16_t bufferY[2] = {0,0}; // List of last tracked Y coordinatess.
+
 
 	double Kp{0.03};
 	double Ki{1.0};
@@ -396,7 +414,7 @@ int main()
 
 		time_start = std::chrono::high_resolution_clock::now();
 
-		facendi(imgYUV, imgOriginal, 20, 5, x_out, y_out);
+		facendi(imgYUV, imgOriginal, 20, 10, x_out, y_out);
 
 		time_end = std::chrono::high_resolution_clock::now();
 		print[7] = std::to_string(getNanoTime(time_start, time_end));
@@ -438,10 +456,16 @@ int main()
 		time_end = std::chrono::high_resolution_clock::now();
 		print[10] = std::to_string(getNanoTime(time_start, time_end));
 
-		std::cout << "FPS " << 1000000000 / getNanoTime(time_begin, time_end) << "\n\n";
+		intmax_t frameTime = getNanoTime(time_begin, time_end);
+
+		if(frameTime < 1000000000/fps){std::this_thread::sleep_for(std::chrono::nanoseconds(1000000000/fps - frameTime));}
+		else{}
 
 		time_end = std::chrono::high_resolution_clock::now();
 		print[11] = std::to_string(getNanoTime(time_begin, time_end));
+
+
+		std::cout << "FPS " << 1000000000 / getNanoTime(time_begin, time_end) << "\n\n";
 
 		if(statsFile.is_open())
 		{
@@ -453,6 +477,7 @@ int main()
 			}
 			statsFile << "\n";
 		}
+
 	}
 
 	statsFile.close();
@@ -1231,6 +1256,8 @@ void adjuster_V(Mat imgYUV, int delta, int fine, int interval, int radium, Rect 
 // groups together and manages all the adjusting functions
 void facendi(Mat imgYUV, Mat imgOriginal, int range, int fine, int x, int y)
 {
+	auto time_start = std::chrono::high_resolution_clock::now();
+
 	int multiplier = 2;
 	c = radium * multiplier + window_base;
 	if (c > 460)
@@ -1277,11 +1304,24 @@ void facendi(Mat imgYUV, Mat imgOriginal, int range, int fine, int x, int y)
 	{
 		window_base = 120;
 	}
+	auto time_end = std::chrono::high_resolution_clock::now();
+	std::cout << printFormattedTime(time_start, time_end) << "\n";
 	if (adj == 1)
 	{
+		time_start = std::chrono::high_resolution_clock::now();
 		adjuster_U(imgYUV, 1, fine, range, radium, r);
-		putText(imgOriginal, "Adjstusting__U", Point(0, 200), 1, 1, Scalar(0, 0, 255), 2);
+		time_end = std::chrono::high_resolution_clock::now();
+		std::cout << "U adjust: " << printFormattedTime(time_start, time_end) << "\n";
+
+		time_start = std::chrono::high_resolution_clock::now();
 		adjuster_V(imgYUV, 1, fine, range, radium, r);
+		time_end = std::chrono::high_resolution_clock::now();
+		std::cout << "V adjust: " << printFormattedTime(time_start, time_end) << "\n";
+
+		time_start = std::chrono::high_resolution_clock::now();
+		putText(imgOriginal, "Adjstusting__U", Point(0, 200), 1, 1, Scalar(0, 0, 255), 2);
 		putText(imgOriginal, "Adjstusting__V", Point(0, 220), 1, 1, Scalar(0, 0, 255), 2);
+		time_end = std::chrono::high_resolution_clock::now();
+		std::cout << "Printing: " << printFormattedTime(time_start, time_end) << "\n";
 	}
 }
