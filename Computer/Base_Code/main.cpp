@@ -6,6 +6,24 @@
  * for Linux install script.
  */
 
+ // Custom libraries
+
+#include "imageTrackingGlobals.h"
+#include "selectCamera.h"
+#include "initiateArduino.h"
+#include "initiateLogFile.h"
+#include "utilities.h"
+
+#include "IntervalCheckTimer.h"
+#include "basic_speed_PID.h"
+//#include "SerialPort.h" // Microsoft Windows only Serial port manager for interfacing with microcontroller. XWINDOWS
+
+// OpenCV libraries
+
+#include <opencv2/core.hpp> // OpenCV's core functionality, definition of Mat
+#include <opencv2/highgui.hpp> // Variation of Qt built into OpenCV, manages GUI
+#include <opencv2/imgproc.hpp> // OpenCV's image processing library
+
 // Built-in libraries
 
 #include <string>
@@ -18,55 +36,21 @@
 //#include <stdio.h>
 //#include <stdlib.h>
 
-// OpenCV libraries
-
-#include <opencv2/core.hpp> // OpenCV's core functionality, definition of Mat
-#include <opencv2/highgui.hpp> // Variation of Qt built into OpenCV, manages GUI
-#include <opencv2/imgproc.hpp> // OpenCV's image processing library
-
-// Custom libraries
-
-#include "IntervalCheckTimer.h"
-#include "basic_speed_PID.h"
-//#include "SerialPort.h" // Microsoft Windows only Serial port manager for interfacing with microcontroller. XWINDOWS
-
 using namespace cv;
 using namespace std;
-
-// Enabling of features
-
-#define GUI 1 // Enabling of GUI (Master ON/OFF)
-#define MINIMAL_GUI 0 // Runs minimal GUI, less stats on screen
-
-#define SIMPLE_OPTIMISATIONS 0 // Cuts out unnecesary operations
-#define EXPENSIVE_OPTIMISATIONS 0 // Cuts out important operations
-
-#define MARKER_TYPE MARKER_STAR // Marker to place on tracked object
-
-#define EROSION_TYPE MORPH_ELLIPSE // Target Erosion Type
-const int erosionMagnitude = 6;
-#define DILATION_TYPE MORPH_ELLIPSE // Target Dilation Type
-const int dilationMagnitude = 16;
 
 // Calculated Globals
 
 bool objectFound = false; // Global marker for found object
 bool arduinoConnected = false; // Global marker for Arduino connection
-int startProgram = false; // Global wait for user to start program
 int counter = 0; // Counter for use with direction calculation
 
 std::string xDirection = "NULL"; // Current X direction of tracked object
 std::string yDirection = "NULL"; // Current Y direction of tracked object
 int dx{0}, dy{0}; // Current X and Y direction of object numerically
 
-#define SEPERATOR ","
-
 // Globals
 
-const int frameHeight = 480;
-const double aspectRatio = (double)4/(double)3;
-const int frameWidth = (int)(aspectRatio * (double)frameHeight);
-int fps = 120;
 const int minimumObjectArea = frameHeight * frameWidth / 1000;
 const int maximumObjectArea = frameHeight * frameWidth / 1.5;
 
@@ -120,40 +104,33 @@ IntervalCheckTimer timer;
 
 /* ----------------------- Main Code Begins ----------------------- */
 
-std::string printFormattedTime(std::chrono::high_resolution_clock::time_point, std::chrono::high_resolution_clock::time_point); // Prints time with appropriate units XSTRUANCHECKED
-intmax_t getNanoTime(std::chrono::high_resolution_clock::time_point, std::chrono::high_resolution_clock::time_point); // Returns time in microseconds XSTRUANCHECKED
-void createTrackbars(); // Creates window with option to start program XSTRUANCHECKED
-void drawObject(int , int , int, Mat&); // Draws a target marker at point specified by inputs to function XSTRUANCHECKED
-void morphOps(Mat&); // Takes raw binary image (thresh) and erodes noise, then dilates what remains XSTRUANCHECKED
-void displayDirection(int_fast16_t, int_fast16_t, int_fast16_t*, int_fast16_t*); // Calculates direction of object over several frames XSTRUANCHECKED
-
 // TO BE CHECKED
 
-bool confirm();
-int_fast16_t selectCamera(cv::VideoCapture&);
-int_fast16_t initiateLogFile(std::ofstream&, cv::VideoCapture&);
 char mapTurn(int); // x-axis XCHANGED from char* to char XARDUINO
 char mapTurn2(int); // y-axis XCHANGED from char* to char XARDUINO
 char mapMove(int); // XCHANGED from char* to char XARDUINO
 void PID_dist(double &Kp,double &Ki,double &Kd, int radium, float range); // Modifies PID values based on distance
 int trackFilteredObject(int &x, int &y, int &radius, Mat threshold, Mat &cameraFeed, const int minArea, const int maxArea); // Establishes borders and center of object
-void targetAquired(Mat &imgOriginal, Mat &threshold, VideoCapture camera, char charCheckForEscKey);
+void targetAquired(Mat &imgOriginal, Mat &threshold, VideoCapture camera, char charCheckForEscKey, int&);
 void checkturn(int x, int &drift_Turn); // x-axis
 void checkturn2(int y, int &drift_Turn2); // y-axis
 void adjuster_U(Mat imgYUV, int delta, int fine, int interval, int radium, Rect r);
 void adjuster_V(Mat imgYUV, int delta, int fine, int interval, int radium, Rect r);
 void facendi(Mat imgYUV, Mat imgOriginal, int range, int fine, int x, int y);
+void displayDirection(int_fast16_t x, int_fast16_t y, int_fast16_t* bufferX, int_fast16_t* bufferY);
 
 int main()
 {
-	int_fast16_t errorReturn = 0;
+	int errorReturn = 0;
+	int fps = INT_MAX;
+	int startProgram = false; // Global wait for user to start program
 
 	/* Camera Init */
 
 	cv::VideoCapture camera; // Declare a VideoCapture object and associate to webcam, 0 => use 1st webcam.
 
 	std::cout << "Begin Program? ";
-	if(confirm()){errorReturn = selectCamera(camera);}
+	if(confirm()){errorReturn = selectCamera(camera, fps);}
 	else{return 0;}
 	if(errorReturn){return errorReturn;}
 	else{}
@@ -163,7 +140,7 @@ int main()
 	std::ofstream statsFile; // File pointer to contain performance data.
 
 	std::cout << "Create Log File? ";
-	if(confirm()){errorReturn = initiateLogFile(statsFile, camera);}
+	if(confirm()){errorReturn = initiateLogFile(camera, statsFile);}
 	else{}
 	if(errorReturn){return errorReturn;}
 	else{}
@@ -172,20 +149,11 @@ int main()
 
 	//SerialPort arduino("\\\\.\\COM3");
 
-	std::cout << "Connecting to arduino...\n";
-
-
-	if (false /*arduino.isConnected()/**/)
-	{
-		std::cout << "Arduino Connection Established\n\n";
-	}
-	else
-	{
-		perror("STRUAN: Arduino not connected. Camera movement is disabled. Port name is likely incorrect, or Arduino is not connected.\nCOMPUTER");
-		std::cout << "\n";
-	}
-
-
+	std::cout << "Connect to Arduino? ";
+	if(confirm()){errorReturn = initiateArduino();}
+	else{}
+	if(errorReturn){return errorReturn;}
+	else{}
 
 	/* History and data aquisition */
 
@@ -217,9 +185,12 @@ int main()
 	//double ratio = 0;
 	char charCheckForEscKey = 0;
 
-	targetAquired(imgOriginal, threshold, camera, charCheckForEscKey);
+	std::cout << std::endl;
+	std::cout << "Searching for target..." << std::endl;
 
-	std::cout << "Target found";
+	targetAquired(imgOriginal, threshold, camera, charCheckForEscKey, startProgram);
+
+	std::cout << "Target found" << std::endl;
 	timer.setInterCheck(100);
 
 	namedWindow("Threshold", WINDOW_NORMAL);
@@ -233,7 +204,7 @@ int main()
 
 	// Main loop
 
-	std::cout << "Starting Main Loop\n";
+	std::cout << "Starting Main Loop...\n\n";
 	while (charCheckForEscKey != '0' && camera.isOpened())
 	{
 		time_begin = std::chrono::high_resolution_clock::now();
@@ -374,11 +345,11 @@ int main()
 
 		if(statsFile.is_open())
 		{
-			statsFile << std::to_string(objectFound) << SEPERATOR;
+			statsFile << std::to_string(objectFound) << seperator;
 			for(int_fast16_t i = 0; i < 12; ++i)
 			{
 				statsFile << print[i];
-				statsFile << SEPERATOR;
+				statsFile << seperator;
 			}
 			statsFile << "\n";
 		}
@@ -388,247 +359,6 @@ int main()
 	destroyAllWindows();
 	std::cout << "Finished\n";
 	return 0;
-}
-
-bool confirm()
-{
-	std::string choice{""};
-
-	std::cin >> choice;
-	std::cin.ignore();
-
-	if(choice.at(0)=='Y' || choice.at(0)=='y' || choice.at(0)=='J' || choice.at(0)=='j' || choice.at(0)=='1' || choice.at(0)=='S' || choice.at(0)=='s' || choice.at(0)=='C' || choice.at(0)=='c')
-	{
-		return true;
-	}
-	else{return false;}
-
-	return false;
-}
-
-int_fast16_t selectCamera(VideoCapture& cameraReturned)
-{
-	VideoCapture cameraChecked[64]; // Declare a VideoCapture object and associate to webcam, 0 => use 1st webcam.
-	int_fast16_t cameraCount = 0; // Number of cameras connected to computer.
-
-	std::cout << "Opening Webcam(s)...\n";
-
-	while(cameraChecked[cameraCount].open(cameraCount) == true){cameraCount++;} // Check all webcams connected to computer and assign addresses.
-
-	if(cameraCount < 1)
-	{
-		perror("STRUAN: Camera not detected, see error file for debugging.\nCOMPUTER");
-		return -1;
-	}
-
-	std::cout << "\nAVAILABLE CAMERAS\n";
-	for(int i = 0; i < 80; i++){std::cout << "-";}
-	std::cout << "\n";
-
-	for(int_fast16_t a = 0; a < cameraCount; ++a)
-	{
-		cameraChecked[a].set(CAP_PROP_FOURCC, VideoWriter::fourcc('M', 'J', 'P', 'G'));
-		cameraChecked[a].set(CAP_PROP_FRAME_HEIGHT, INT_MAX);
-		cameraChecked[a].set(CAP_PROP_FRAME_WIDTH, INT_MAX);
-		cameraChecked[a].set(CAP_PROP_FPS, INT_MAX);
-
-		int32_t fourcc = cameraChecked[a].get(CAP_PROP_FOURCC);
-		std::string fourcc_str = format("%c%c%c%c", fourcc & 255, (fourcc >> 8) & 255, (fourcc >> 16) & 255, (fourcc >> 24) & 255);
-
-		std::cout << "CAMERA " << a << "\n";
-		std::cout << "Maximum settings are as follows:\n";
-		std::cout << "FPS: " << cameraChecked[a].get(CAP_PROP_FPS) << "\n";
-		std::cout << "Resolution: " << cameraChecked[a].get(CAP_PROP_FRAME_WIDTH) << "*" << cameraChecked[a].get(CAP_PROP_FRAME_HEIGHT) << "\n";
-		std::cout << "Camera Format: " << fourcc_str << "\n";
-
-		for(int i = 0; i < 80; i++){std::cout << "-";}
-		std::cout << "\n";
-	}
-
-	std::cout << "\n";
-
-
-	/* Local Setup */
-	/* Camera Init */
-
-	int_fast16_t selectedCamera = 0; // Camera selected for program to use.
-
-	if(cameraCount > 1)
-	{
-		std::cout << "Please select which camera to use: ";
-		std::cin >> selectedCamera;
-		std::cin.ignore();
-		std::cout << "\n";
-
-		if(selectedCamera < 0 || selectedCamera >= cameraCount){selectedCamera = 0;}
-		else{}
-	}
-	else{}
-
-	cameraReturned = cameraChecked[selectedCamera];
-
-	std::cout << "Camera used = " << selectedCamera << "\n";
-	std::cout << "\n";
-
-	if (cameraReturned.isOpened() == true) // Check if VideoCapture object was associated to webcam successfully
-	{
-		std::cout << "Setting camera properties...\n";
-
-		cameraReturned.set(CAP_PROP_FOURCC, VideoWriter::fourcc('M', 'J', 'P', 'G'));
-		cameraReturned.set(CAP_PROP_FRAME_WIDTH, frameWidth);
-		cameraReturned.set(CAP_PROP_FRAME_HEIGHT, frameHeight);
-		cameraReturned.set(CAP_PROP_FPS, fps);
-
-		fps = cameraReturned.get(CAP_PROP_FPS);
-
-		int32_t fourcc = cameraReturned.get(CAP_PROP_FOURCC);
-		std::string fourcc_str = format("%c%c%c%c", fourcc & 255, (fourcc >> 8) & 255, (fourcc >> 16) & 255, (fourcc >> 24) & 255);
-
-		for(int i = 0; i < 80; i++){std::cout << "-";}
-		std::cout << "\n";
-
-		std::cout << "CAMERA " << selectedCamera << " stats have been set as follows:\n";
-		std::cout << "FPS: " << cameraReturned.get(CAP_PROP_FPS) << "\n";
-		std::cout << "Resolution: " << cameraReturned.get(CAP_PROP_FRAME_WIDTH) << "*" << cameraReturned.get(CAP_PROP_FRAME_HEIGHT) << "\n";
-		std::cout << "Camera Format: " << fourcc_str << "\n";
-		std::cout << "RGB Flag: " << cameraReturned.get(CAP_PROP_CONVERT_RGB) << "\n";
-		std::cout << "Complexity: " << ((double)frameHeight*(double)frameWidth/307200.0) << "\n";
-
-		for(int i = 0; i < 80; i++){std::cout << "-";}
-		std::cout << "\n\n";
-	}
-	else
-	{
-		perror("STRUAN: Camera failed to open, quitting.\nCOMPUTER");
-		return -2;
-	}
-	return 0;
-}
-
-int_fast16_t initiateLogFile(std::ofstream& statsFile, cv::VideoCapture& camera)
-{
-	intmax_t programStartTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
-
-	std::cout << "Opening performance file...\n";
-	statsFile.open("Log_" + std::to_string(programStartTime) + ".csv",ios::out | ios::trunc);
-
-	if (statsFile.is_open() == true) // Check if performance file was opened
-	{
-		std::cout << "Performace Log file opened.\n\n";
-		statsFile << "FPS:" << SEPERATOR << camera.get(CAP_PROP_FPS) << "\n";
-		statsFile << "ResolutionHeight:" << SEPERATOR  << camera.get(CAP_PROP_FRAME_HEIGHT) << "\n";
-		statsFile << "ResolutionWidth:" << SEPERATOR << camera.get(CAP_PROP_FRAME_WIDTH) << "\n";
-		statsFile << "\n";
-		statsFile << "ObjectFound" << SEPERATOR << "WebcamRead" << SEPERATOR <<
-		"GaussianBlur" << SEPERATOR << "ColourConversion" << SEPERATOR <<
-		"SelectMode" << SEPERATOR << "InRangeMorphOpsDisplayDirection" <<
-		SEPERATOR << "TrackFilteredObject" << SEPERATOR << "PIDDist" <<
-		SEPERATOR << "Facendi" << SEPERATOR << "PutText" << SEPERATOR <<
-		"ShowImage" << SEPERATOR << "TimeWaitKey\n";
-	}
-	else
-	{
-		perror("STRUAN: File not opened, check filesystem is accessible to program.\nCOMPUTER");
-		return -3;
-	}
-
-	return 0;
-}
-
-std::string printFormattedTime(std::chrono::high_resolution_clock::time_point time_start, std::chrono::high_resolution_clock::time_point time_end) // XSTRUANCHECKED
-{
-	intmax_t a = std::chrono::duration_cast<std::chrono::nanoseconds>(time_end-time_start).count();
-	if(a == 0){return "CLOCK ERROR (Reported 0 Nanoseconds)";}
-	else if(a == 1){return std::to_string(a) + " Nanosecond";}
-	else if(a <= 9999){return std::to_string(a) + " Nanoseconds";}
-	else if(a <= 9999999){return std::to_string(a/1000) + " Microseconds";}
-	else if(a <= 9999999999){return std::to_string(a/1000000) + " Milliseconds";}
-	else{return std::to_string(a/1000000000) + " Seconds";}
-	return "That's a nasty error";
-}
-
-intmax_t getNanoTime(std::chrono::high_resolution_clock::time_point time_start, std::chrono::high_resolution_clock::time_point time_end) // XSTRUANCHECKED
-{
-	intmax_t a = std::chrono::duration_cast<std::chrono::nanoseconds>(time_end-time_start).count();
-	if(a == 0){return -1;}
-	else{return a;}
-}
-
-void createTrackbars() // Creates window with option to start program XSTRUANCHECKED
-{
-	// Create memory to store trackbar and trackbar window name
-	std::string TrackbarWindowName{"Confirm Object Centered"};
-	std::string TrackbarName{"Object Centered"};
-
-	// Create window for trackbars
-	namedWindow(TrackbarWindowName, 0);
-
-	// Place trackbar in window, store trackbar value in variable 'proceed'
-	// Trackbar value is between 0 and 1
-	createTrackbar(TrackbarName, TrackbarWindowName, &startProgram, 1, 0);
-}
-
-void drawObject(int x, int y, int radius, Mat &frame) // Draws a target marker at point specified by inputs to function XSTRUANCHECKED
-{
-	#if GUI == 1
-	// Draws a centrepoint around x,y with diameter equal to radius (Half the size of the circle)
-	drawMarker(frame, Point(x, y), Scalar(255, 0, 0), MARKER_TYPE, radius, (radius/50)+1);
-
-	#if MINIMAL == 0
-	// Draws a circle around x,y with radius
-	circle(frame, Point(x, y), radius, Scalar(255, 0, 0), 2);
-	// Displays current co-ordinates of the object next to marker
-	putText(frame, std::to_string(x) + "," + std::to_string(y), Point(x, y + 30), 1, 1, Scalar(255, 0, 0), 2);
-	#endif
-	#endif
-}
-
-void morphOps(Mat &thresh) // Takes raw binary image (thresh) and erodes noise, then dilates what remains XSTRUANCHECKED
-{
-	// Create element structure that will erode the binary image.
-	Mat opElement = getStructuringElement(EROSION_TYPE, Size(erosionMagnitude, erosionMagnitude));
-
-	erode(thresh, thresh, opElement); // Erode binary image
-
-	#if SIMPLE_OPTIMISATIONS == 0
-	// Update element structure to dilate image
-	opElement = getStructuringElement(DILATION_TYPE, Size(dilationMagnitude, dilationMagnitude));
-	#endif
-
-	dilate(thresh, thresh, opElement); // Dilate binary image
-}
-
-void displayDirection(int_fast16_t x, int_fast16_t y, int_fast16_t* bufferX, int_fast16_t* bufferY) // Calculates direction of object over several frames XSTRUANCHECKED
-{
-	if(counter <= 0)
-	{
-		counter = 1;
-		bufferX[0] = x;
-		bufferY[0] = y;
-	}
-	else if (counter >= 3) // Frames to be skipped - 1 (3 = 4 frames)
-	{
-		counter = 0;
-		dx = x - bufferX[0];
-		dy = y - bufferY[0];
-
-		if (abs(dx) > 10)
-		{
-			if (dx > 0){xDirection = "Left";}
-			else{xDirection = "Right";}
-		}
-		else{xDirection = "Null";}
-
-		if (abs(dy) > 10)
-		{
-			if (dy > 0){yDirection = "Down";}
-			else{yDirection = "Up";}
-		}
-		else{yDirection = "Null";}
-	}
-	else{counter++;}
-
-	return;
 }
 
 // TO BE CHECKED
@@ -853,7 +583,7 @@ int trackFilteredObject(int &x, int &y, int &radius, Mat threshold, Mat &cameraF
 	}
 }
 
-void targetAquired(Mat &imgOriginal, Mat &threshold, VideoCapture camera, char charCheckForEscKey)
+void targetAquired(Mat &imgOriginal, Mat &threshold, VideoCapture camera, char charCheckForEscKey, int& startProgram)
 {
 	bool useMorphOps = true;
 	Mat imgYUV;
@@ -883,7 +613,7 @@ void targetAquired(Mat &imgOriginal, Mat &threshold, VideoCapture camera, char c
 
 		Mat borderImage;
 
-		createTrackbars(); //returns startProgram = 1 when button is pressed
+		createTrackbars(startProgram); //returns startProgram = 1 when button is pressed
 		//Begin of calibration function ---------only run once at startup---------------------------------------
 		if (startProgram == true)
 		{
@@ -1373,4 +1103,37 @@ void facendi(Mat imgYUV, Mat imgOriginal, int range, int fine, int x, int y)
 		time_end = std::chrono::high_resolution_clock::now();
 		std::cout << "Printing: " << printFormattedTime(time_start, time_end) << "\n";
 	}
+}
+
+void displayDirection(int_fast16_t x, int_fast16_t y, int_fast16_t* bufferX, int_fast16_t* bufferY) // Calculates direction of object over several frames XSTRUANCHECKED
+{
+	if(counter <= 0)
+	{
+		counter = 1;
+		bufferX[0] = x;
+		bufferY[0] = y;
+	}
+	else if (counter >= 3) // Frames to be skipped - 1 (3 = 4 frames)
+	{
+		counter = 0;
+		dx = x - bufferX[0];
+		dy = y - bufferY[0];
+
+		if (abs(dx) > 10)
+		{
+			if (dx > 0){xDirection = "Left";}
+			else{xDirection = "Right";}
+		}
+		else{xDirection = "Null";}
+
+		if (abs(dy) > 10)
+		{
+			if (dy > 0){yDirection = "Down";}
+			else{yDirection = "Up";}
+		}
+		else{yDirection = "Null";}
+	}
+	else{counter++;}
+
+	return;
 }
