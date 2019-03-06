@@ -54,6 +54,9 @@ int dx{0}, dy{0}; // Current X and Y direction of object numerically
 const int minimumObjectArea = frameHeight * frameWidth / 1000;
 const int maximumObjectArea = frameHeight * frameWidth / 1.5;
 
+intmax_t adjustmentTime = 66; // Milliseconds
+intmax_t maxAdjustmentTime = 66; // Milliseconds
+
 float Kp1, Ki1;
 float Kp2, Ki2;
 float Kp3, Ki3;
@@ -121,9 +124,9 @@ void displayDirection(int_fast16_t x, int_fast16_t y, int_fast16_t* bufferX, int
 
 int main()
 {
-	int errorReturn = 0;
-	int fps = INT_MAX;
-	int startProgram = false; // Global wait for user to start program
+	int errorReturn = 0; // variable to return errors to.
+	int fps = INT_MAX; // Attempt to set camera fps to max.
+	int startProgram = false; // integer wait for user to start program
 
 	/* Camera Init */
 
@@ -155,6 +158,10 @@ int main()
 	if(errorReturn){return errorReturn;}
 	else{}
 
+	const intmax_t absoluteMaxAdjustmentTime = 1000 / 10; // Minimum framerate set to 10 FPS.
+	maxAdjustmentTime = 1100/fps; // Aims for the code to run at no less than half the maximum framerate.
+	intmax_t uvAdjust = 20000;
+
 	/* History and data aquisition */
 
 	int_fast16_t bufferX[2] = {0,0}; // List of last tracked X coordinates.
@@ -176,6 +183,8 @@ int main()
 	Mat threshold;
 	Mat imgYUV;
 	Mat borderImage;
+
+	intmax_t frameTime = 100;
 
 	//bool trackObjects = true;
 
@@ -285,7 +294,7 @@ int main()
 
 		time_start = std::chrono::high_resolution_clock::now();
 
-		facendi(imgYUV, imgOriginal, 20, 10, x_out, y_out);
+		facendi(imgYUV, imgOriginal, 20, uvAdjust/1000, x_out, y_out);
 
 		time_end = std::chrono::high_resolution_clock::now();
 		print[7] = std::to_string(getNanoTime(time_start, time_end));
@@ -327,7 +336,7 @@ int main()
 		time_end = std::chrono::high_resolution_clock::now();
 		print[10] = std::to_string(getNanoTime(time_start, time_end));
 
-		intmax_t frameTime = getNanoTime(time_begin, time_end);
+		frameTime = getNanoTime(time_begin, time_end);
 
 		if(frameTime < 1000000000/fps)
 		{
@@ -337,9 +346,17 @@ int main()
 		}
 		else{}
 
+		if(objectFound)
+		{
+			if(frameTime/1000000 > absoluteMaxAdjustmentTime){uvAdjust*=4;}
+			else if(frameTime/1000000 >= maxAdjustmentTime){uvAdjust*=1.02;}
+			else if(uvAdjust > 2084 && frameTime/1000000 < maxAdjustmentTime){uvAdjust*=0.96;}
+			else{}
+		}
+		std::cout << uvAdjust << "\n";
+
 		time_end = std::chrono::high_resolution_clock::now();
 		print[11] = std::to_string(getNanoTime(time_begin, time_end));
-
 
 		std::cout << "Actual FPS " << 1000000000 / getNanoTime(time_begin, time_end) << "\n\n";
 
@@ -1061,7 +1078,7 @@ void facendi(Mat imgYUV, Mat imgOriginal, int range, int fine, int x, int y)
 
 	if (counthere == 0)
 	{
-		counthere = 4;
+		counthere = 1;
 		if ((x_now > x_low) && (x_now < x_high))
 		{
 			if ((y_now > y_low) && (y_now < y_high))
@@ -1077,31 +1094,33 @@ void facendi(Mat imgYUV, Mat imgOriginal, int range, int fine, int x, int y)
 	{
 		adj = 1;
 		window_base = 350;
-		fine = 10;
+		//fine = 10;
 	}
 	else
 	{
 		window_base = 120;
 	}
-	auto time_end = std::chrono::high_resolution_clock::now();
-	std::cout << printFormattedTime(time_start, time_end) << "\n";
+	auto time_stop = std::chrono::high_resolution_clock::now();
+	std::cout << printFormattedTime(time_start, time_stop) << "\n";
 	if (adj == 1)
 	{
+		std::cout << "Adjusting\n";
 		time_start = std::chrono::high_resolution_clock::now();
 		adjuster_U(imgYUV, 1, fine, range, radium, r);
-		time_end = std::chrono::high_resolution_clock::now();
-		std::cout << "U adjust: " << printFormattedTime(time_start, time_end) << "\n";
+		time_stop = std::chrono::high_resolution_clock::now();
+		std::cout << "U adjust: " << printFormattedTime(time_start, time_stop) << "\n";
 
 		time_start = std::chrono::high_resolution_clock::now();
 		adjuster_V(imgYUV, 1, fine, range, radium, r);
-		time_end = std::chrono::high_resolution_clock::now();
-		std::cout << "V adjust: " << printFormattedTime(time_start, time_end) << "\n";
+		time_stop = std::chrono::high_resolution_clock::now();
+		std::cout << "V adjust: " << printFormattedTime(time_start, time_stop) << "\n";
+		adjustmentTime = 2*getNanoTime(time_start, time_stop)/1000000;
 
 		time_start = std::chrono::high_resolution_clock::now();
 		putText(imgOriginal, "Adjstusting__U", Point(0, 200), 1, 1, Scalar(0, 0, 255), 2);
 		putText(imgOriginal, "Adjstusting__V", Point(0, 220), 1, 1, Scalar(0, 0, 255), 2);
-		time_end = std::chrono::high_resolution_clock::now();
-		std::cout << "Printing: " << printFormattedTime(time_start, time_end) << "\n";
+		time_stop = std::chrono::high_resolution_clock::now();
+		std::cout << "Printing: " << printFormattedTime(time_start, time_stop) << "\n";
 	}
 }
 

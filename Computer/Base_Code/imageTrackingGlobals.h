@@ -19,6 +19,6 @@ const int dilationMagnitude = 16;
 const int frameHeight = 480;
 const double aspectRatio = (double)4/(double)3;
 const int frameWidth = (int)(aspectRatio * (double)frameHeight);
-const char seperator = ' ';
+const char seperator = ',';
 
 #endif
