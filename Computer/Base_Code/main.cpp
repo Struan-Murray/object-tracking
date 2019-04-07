@@ -9,13 +9,13 @@
  // Custom libraries
 
 #include "imageTrackingGlobals.h"
-#include "selectCamera.h"
-#include "initiateArduino.h"
+#include "initiateCamera.h"
+#include "initiateArduino.h" // Currently empty
 #include "initiateLogFile.h"
 #include "utilities.h"
 
-#include "IntervalCheckTimer.h"
-#include "basic_speed_PID.h"
+//#include "IntervalCheckTimer.h"
+//#include "basic_speed_PID.h"
 //#include "SerialPort.h" // Microsoft Windows only Serial port manager for interfacing with microcontroller. XWINDOWS
 
 // OpenCV libraries
@@ -51,8 +51,8 @@ int dx{0}, dy{0}; // Current X and Y direction of object numerically
 
 // Globals
 
-const int minimumObjectArea = frameHeight * frameWidth / 1000;
-const int maximumObjectArea = frameHeight * frameWidth / 1.5;
+const int minimumObjectArea = frameHeight * frameWidth / 500;
+const int maximumObjectArea = frameHeight * frameWidth / 3;
 
 intmax_t adjustmentTime = 66; // Milliseconds
 intmax_t maxAdjustmentTime = 66; // Milliseconds
@@ -100,27 +100,27 @@ int x_out, y_out;
 int radium;
 int counthere = 0;
 int prima = 1;
-basic_speed_PID PID_turn1(0, 0, 0, -10, 10);
-basic_speed_PID PID_turn2(0, 0, 0, -10, 10);
-basic_speed_PID PID_speed(0, 0, 0, -5 , 5 );
-IntervalCheckTimer timer;
+//basic_speed_PID PID_turn1(0, 0, 0, -10, 10);
+//basic_speed_PID PID_turn2(0, 0, 0, -10, 10);
+//basic_speed_PID PID_speed(0, 0, 0, -5 , 5 );
+//IntervalCheckTimer timer;
 
 /* ----------------------- Main Code Begins ----------------------- */
 
 // TO BE CHECKED
 
-char mapTurn(int); // x-axis XCHANGED from char* to char XARDUINO
-char mapTurn2(int); // y-axis XCHANGED from char* to char XARDUINO
-char mapMove(int); // XCHANGED from char* to char XARDUINO
-void PID_dist(double &Kp,double &Ki,double &Kd, int radium, float range); // Modifies PID values based on distance
 int trackFilteredObject(int &x, int &y, int &radius, Mat threshold, Mat &cameraFeed, const int minArea, const int maxArea); // Establishes borders and center of object
 void targetAquired(Mat &imgOriginal, Mat &threshold, VideoCapture camera, char charCheckForEscKey, int&);
-void checkturn(int x, int &drift_Turn); // x-axis
-void checkturn2(int y, int &drift_Turn2); // y-axis
 void adjuster_U(Mat imgYUV, int delta, int fine, int interval, int radium, Rect r);
 void adjuster_V(Mat imgYUV, int delta, int fine, int interval, int radium, Rect r);
 void facendi(Mat imgYUV, Mat imgOriginal, int range, int fine, int x, int y);
 void displayDirection(int_fast16_t x, int_fast16_t y, int_fast16_t* bufferX, int_fast16_t* bufferY);
+//void checkturn(int x, int &drift_Turn); // x-axis
+//void checkturn2(int y, int &drift_Turn2); // y-axis
+//char mapTurn(int); // x-axis XCHANGED from char* to char XARDUINO
+//char mapTurn2(int); // y-axis XCHANGED from char* to char XARDUINO
+//char mapMove(int); // XCHANGED from char* to char XARDUINO
+//void PID_dist(double &Kp,double &Ki,double &Kd, int radium, float range); // Modifies PID values based on distance
 
 int main()
 {
@@ -133,7 +133,7 @@ int main()
 	cv::VideoCapture camera; // Declare a VideoCapture object and associate to webcam, 0 => use 1st webcam.
 
 	std::cout << "Begin Program? ";
-	if(confirm()){errorReturn = selectCamera(camera, fps);}
+	if(confirm()){errorReturn = initiateCamera(camera, fps);}
 	else{return 0;}
 	if(errorReturn){return errorReturn;}
 	else{}
@@ -167,17 +167,16 @@ int main()
 	int_fast16_t bufferX[2] = {0,0}; // List of last tracked X coordinates.
 	int_fast16_t bufferY[2] = {0,0}; // List of last tracked Y coordinatess.
 
-
-	double Kp{0.03};
-	double Ki{1.0};
 	double Kd{0.0};
 
+/*	double Kp{0.03};
+	double Ki{1.0};
 	int drift_Turn = 0;
-	int drift_Turn2 = 0;
+	int drift_Turn2 = 0;*/
 	//int drift_Move = 0;      //PID parameters are produced automatically as the programme executes
 
-	PID_turn1.set_gainvals(Kp, Kd, Ki);
-	PID_turn2.set_gainvals(Kp, Kd, Ki);
+	//PID_turn1.set_gainvals(Kp, Kd, Ki);
+	//PID_turn2.set_gainvals(Kp, Kd, Ki);
 
 	Mat imgOriginal;
 	Mat threshold;
@@ -200,7 +199,7 @@ int main()
 	targetAquired(imgOriginal, threshold, camera, charCheckForEscKey, startProgram);
 
 	std::cout << "Target found" << std::endl;
-	timer.setInterCheck(100);
+	//timer.setInterCheck(100);
 
 	namedWindow("Threshold", WINDOW_NORMAL);
 	namedWindow("imgOriginal", WINDOW_NORMAL); // CV_WINDOW_NORMAL which allows resizing the window
@@ -287,7 +286,7 @@ int main()
 		time_start = std::chrono::high_resolution_clock::now();
 
 		radium = radius;
-		PID_dist(Kp, Ki, Kd, radium, 0.2); // adjusts PID values depending on radium ob object
+		//PID_dist(Kp, Ki, Kd, radium, 0.2); // adjusts PID values depending on radium ob object
 
 		time_end = std::chrono::high_resolution_clock::now();
 		print[6] = std::to_string(getNanoTime(time_start, time_end));
@@ -297,6 +296,7 @@ int main()
 		facendi(imgYUV, imgOriginal, 20, uvAdjust/1000, x_out, y_out);
 
 		time_end = std::chrono::high_resolution_clock::now();
+		std::cout << "Facendi: " << printFormattedTime(time_start, time_end) << "\n";
 		print[7] = std::to_string(getNanoTime(time_start, time_end));
 
 		time_start = std::chrono::high_resolution_clock::now();
@@ -325,12 +325,12 @@ int main()
 
 		time_start = std::chrono::high_resolution_clock::now();
 
-		if (timer.isMinChekTimeElapsedAndUpdate())
+		/*if (timer.isMinChekTimeElapsedAndUpdate())
 		{
-			checkturn(x, drift_Turn);
+			//checkturn(x, drift_Turn);
 			//checkDrive(radius, drift_Move);
-			checkturn2(y, drift_Turn2);
-		}
+			//checkturn2(y, drift_Turn2);
+		}*/
 		charCheckForEscKey = cv::waitKey(10);
 
 		time_end = std::chrono::high_resolution_clock::now();
@@ -346,13 +346,11 @@ int main()
 		}
 		else{}
 
-		if(objectFound)
-		{
-			if(frameTime/1000000 > absoluteMaxAdjustmentTime){uvAdjust*=4;}
-			else if(frameTime/1000000 >= maxAdjustmentTime){uvAdjust*=1.02;}
-			else if(uvAdjust > 2084 && frameTime/1000000 < maxAdjustmentTime){uvAdjust*=0.96;}
-			else{}
-		}
+		/*if(frameTime/1000000 > absoluteMaxAdjustmentTime){uvAdjust*=4;}
+		else if(frameTime/1000000 >= maxAdjustmentTime){uvAdjust*=1.02;}
+		else if(uvAdjust > 2084 && frameTime/1000000 < maxAdjustmentTime){uvAdjust*=0.96;}
+		else{}*/
+
 		std::cout << uvAdjust << "\n";
 
 		time_end = std::chrono::high_resolution_clock::now();
@@ -379,171 +377,6 @@ int main()
 }
 
 // TO BE CHECKED
-
-char mapTurn(int drift)   // x-axis XCHANGED from char* to char
-{
-	switch (drift)
-	{
-	case 0:
-		return '0';
-	case 1:
-		return 'a';
-	case 2:
-		return 'b';
-	case 3:
-		return 'c';
-	case 4:
-		return 'd';
-	case 5:
-		return 'e';
-	case 6:
-		return 'f';
-	case 7:
-		return 'g';
-	case 8:
-		return 'h';
-	case 9:
-		return 'i';
-	case 10:
-		return 'j';
-	case -1:
-		return 'k';
-	case -2:
-		return 'l';
-	case -3:
-		return 'm';
-	case -4:
-		return 'n';
-	case -5:
-		return 'o';
-	case -6:
-		return 'p';
-	case -7:
-		return 'q';
-	case -8:
-		return 'r';
-	case -9:
-		return 's';
-	case -10:
-		return 't';
-	default:
-		cout << "Print x";
-		return 'x';
-	}
-}
-
-char mapTurn2(int drift)   // y-axis XCHANGED from char* to char
-{
-	switch (drift)
-	{
-	case 0:
-		return '0';
-	case 1:
-		return 'A';
-	case 2:
-		return 'B';
-	case 3:
-		return 'C';
-	case 4:
-		return 'D';
-	case 5:
-		return 'E';
-	case 6:
-		return 'F';
-	case 7:
-		return 'G';
-	case 8:
-		return 'H';
-	case 9:
-		return 'I';
-	case 10:
-		return 'J';
-	case -1:
-		return 'K';
-	case -2:
-		return 'L';
-	case -3:
-		return 'M';
-	case -4:
-		return 'N';
-	case -5:
-		return 'O';
-	case -6:
-		return 'P';
-	case -7:
-		return 'Q';
-	case -8:
-		return 'R';
-	case -9:
-		return 'S';
-	case -10:
-		return 'T';
-	default:
-		cout << "Print x";
-		return 'x';
-	}
-}
-
-char mapMove(int drift) // XCHANGED from char* to char
-{
-	switch (drift)
-	{
-	case 0:
-		return 'z';
-	case 1:
-		return '1';
-	case 2:
-		return '2';
-	case 3:
-		return '3';
-	case 4:
-		return '4';
-	case 5:
-		return '5';
-	case -1:
-		return '6';
-	case -2:
-		return '7';
-	case -3:
-		return '8';
-	case -4:
-		return '9';
-	case -5:
-		return ':';
-	default:
-		return 'x';
-	}
-}
-
-/* Changes the response of the PID depending on the size of the tracked object,
- * avoids sudden movements when target is too close and tracks faster when
- * object is far away.*/
-void PID_dist(double &Kp,double &Ki,double &Kd, int radium, float range)
-{
-	Kp2 = Kp + Kp * range;
-	Ki2 = Ki + Ki * range;
-	Kp3 = Kp - Kp * range;
-	Ki3 = Ki - Ki * range;
-
-	if (radium < 20) // most dynamic response when object is small
-	{
-		Kp1 = Kp2;
-		Ki1 = Ki2;
-	}
-	else if (radium > 100) //least dynamic response when object is big
-	{
-		Kp1 = Kp3;
-		Ki1 = Ki3;
-	}
-	else //linear response between two intervals
-	{
-		Kp1 = ((Kp3 - Kp2) * (radium - 20)) / 80 + Kp2;
-		Ki1 = ((Ki3 - Ki2) * (radium - 20)) / 80 + Ki2;
-	}
-
-	PID_turn1.set_gainvals(Kp1, Kd, Ki1);
-	PID_turn2.set_gainvals(Kp1, Kd, Ki1);
-}
 
 int trackFilteredObject(int &x, int &y, int &radius, Mat threshold, Mat &cameraFeed, const int minArea, const int maxArea) // Establishes borders and center of object
 {
@@ -780,46 +613,6 @@ void targetAquired(Mat &imgOriginal, Mat &threshold, VideoCapture camera, char c
 	}
 }
 
-void checkturn(int x, int &drift_Turn)  // x-axis
-{
-	int old_drift = drift_Turn;
-	int change_Drift;
-
-	if (objectFound == false)
-	{
-		//arduino.writeSerialPort(mapTurn(11), 2);
-	}
-	if (objectFound == true)
-	{
-		drift_Turn = PID_turn1.ComputePID_output(320, x);
-		change_Drift = drift_Turn - old_drift;
-		if (change_Drift != 0)
-		{
-			//arduino.writeSerialPort(mapTurn(drift_Turn), 2);
-		}
-	}
-}
-
-void checkturn2(int y, int &drift_Turn2)     // y-axis
-{
-	int old_drift2 = drift_Turn2;
-	int change_Drift2;
-
-	if (objectFound == false)
-	{
-		//arduino.writeSerialPort(mapTurn(11), 2);
-	}
-	if (objectFound == true)
-	{
-		drift_Turn2 = PID_turn2.ComputePID_output(240, y);
-		change_Drift2 = drift_Turn2 - old_drift2;
-		if (change_Drift2 != 0)
-		{
-			//arduino.writeSerialPort(mapTurn2(drift_Turn2), 2);
-		}
-	}
-}
-
 void adjuster_U(Mat imgYUV, int delta, int fine, int interval, int radium, Rect r)
 {
 	int half_int = int(interval / 2);
@@ -959,7 +752,7 @@ void adjuster_V(Mat imgYUV, int delta, int fine, int interval, int radium, Rect 
 	inside = 0;
 	outside = 0;
 
-	if ((V_MIN > half_int) && (V_MIN < (UVMAX - half_int)))
+	if((V_MIN > half_int) && (V_MIN < (UVMAX - half_int)))
 	{
 		V_MIN_low = V_MIN - half_int;
 		V_MIN_high = V_MIN + half_int;
@@ -1052,12 +845,10 @@ void adjuster_V(Mat imgYUV, int delta, int fine, int interval, int radium, Rect 
 // groups together and manages all the adjusting functions
 void facendi(Mat imgYUV, Mat imgOriginal, int range, int fine, int x, int y)
 {
-	auto time_start = std::chrono::high_resolution_clock::now();
-
 	int multiplier = 2;
 	c = radium * multiplier + window_base;
 	if (c > 460)
-	{    //limits maximum size of adjusting rectangle
+	{ //limits maximum size of adjusting rectangle
 		c = 460;
 	}
 
@@ -1068,10 +859,10 @@ void facendi(Mat imgYUV, Mat imgOriginal, int range, int fine, int x, int y)
 	rectangle(imgOriginal, r, Scalar(0, 0, 255), 5, 8, 0);
 	int x_low = a + radium;
 	int y_low = b + radium;
-	int x_high = a + c - radium ;
+	int x_high = a + c - radium;
 	int y_high = b + d - radium;
-	int x_now = x  ;
-	int y_now = y  ;
+	int x_now = x;
+	int y_now = y;
 	int adj = 0;
 	putText(imgOriginal, "X: " + std::to_string(x_low) + "/"+ std::to_string(x_now) + "/" + std::to_string(x_high), Point(10, 300), 1, 1, Scalar(0, 0, 255), 2);
 	putText(imgOriginal, "Y: " + std::to_string(y_low) + "/" + std::to_string(y_now) + "/" + std::to_string(y_high), Point(10, 320), 1, 1, Scalar(0, 0, 255), 2);
@@ -1100,27 +891,20 @@ void facendi(Mat imgYUV, Mat imgOriginal, int range, int fine, int x, int y)
 	{
 		window_base = 120;
 	}
-	auto time_stop = std::chrono::high_resolution_clock::now();
-	std::cout << printFormattedTime(time_start, time_stop) << "\n";
-	if (adj == 1)
+
+	if(adj==1)
 	{
-		std::cout << "Adjusting\n";
-		time_start = std::chrono::high_resolution_clock::now();
-		adjuster_U(imgYUV, 1, fine, range, radium, r);
-		time_stop = std::chrono::high_resolution_clock::now();
-		std::cout << "U adjust: " << printFormattedTime(time_start, time_stop) << "\n";
+		std::thread uAdjust(adjuster_U, imgYUV, 1, fine, range, radium, r); // Adjust U values
+		std::thread vAdjust(adjuster_V, imgYUV, 1, fine, range, radium, r); // Asjudt V values
 
-		time_start = std::chrono::high_resolution_clock::now();
-		adjuster_V(imgYUV, 1, fine, range, radium, r);
-		time_stop = std::chrono::high_resolution_clock::now();
-		std::cout << "V adjust: " << printFormattedTime(time_start, time_stop) << "\n";
-		adjustmentTime = 2*getNanoTime(time_start, time_stop)/1000000;
+		uAdjust.join();
+		vAdjust.join();
 
-		time_start = std::chrono::high_resolution_clock::now();
+		//adjuster_U(imgYUV, 1, fine, range, radium, r);
+		//adjuster_V(imgYUV, 1, fine, range, radium, r);
+
 		putText(imgOriginal, "Adjstusting__U", Point(0, 200), 1, 1, Scalar(0, 0, 255), 2);
 		putText(imgOriginal, "Adjstusting__V", Point(0, 220), 1, 1, Scalar(0, 0, 255), 2);
-		time_stop = std::chrono::high_resolution_clock::now();
-		std::cout << "Printing: " << printFormattedTime(time_start, time_stop) << "\n";
 	}
 }
 
@@ -1156,3 +940,208 @@ void displayDirection(int_fast16_t x, int_fast16_t y, int_fast16_t* bufferX, int
 
 	return;
 }
+
+/*void checkturn(int x, int &drift_Turn)  // x-axis
+{
+	int old_drift = drift_Turn;
+	int change_Drift;
+
+	if (objectFound == false)
+	{
+		//arduino.writeSerialPort(mapTurn(11), 2);
+	}
+	if (objectFound == true)
+	{
+		drift_Turn = PID_turn1.ComputePID_output(320, x);
+		change_Drift = drift_Turn - old_drift;
+		if (change_Drift != 0)
+		{
+			//arduino.writeSerialPort(mapTurn(drift_Turn), 2);
+		}
+	}
+}
+
+void checkturn2(int y, int &drift_Turn2)     // y-axis
+{
+	int old_drift2 = drift_Turn2;
+	int change_Drift2;
+
+	if (objectFound == false)
+	{
+		//arduino.writeSerialPort(mapTurn(11), 2);
+	}
+	if (objectFound == true)
+	{
+		drift_Turn2 = PID_turn2.ComputePID_output(240, y);
+		change_Drift2 = drift_Turn2 - old_drift2;
+		if (change_Drift2 != 0)
+		{
+			//arduino.writeSerialPort(mapTurn2(drift_Turn2), 2);
+		}
+	}
+}*/
+
+/*char mapTurn(int drift)   // x-axis XCHANGED from char* to char
+{
+	switch (drift)
+	{
+	case 0:
+		return '0';
+	case 1:
+		return 'a';
+	case 2:
+		return 'b';
+	case 3:
+		return 'c';
+	case 4:
+		return 'd';
+	case 5:
+		return 'e';
+	case 6:
+		return 'f';
+	case 7:
+		return 'g';
+	case 8:
+		return 'h';
+	case 9:
+		return 'i';
+	case 10:
+		return 'j';
+	case -1:
+		return 'k';
+	case -2:
+		return 'l';
+	case -3:
+		return 'm';
+	case -4:
+		return 'n';
+	case -5:
+		return 'o';
+	case -6:
+		return 'p';
+	case -7:
+		return 'q';
+	case -8:
+		return 'r';
+	case -9:
+		return 's';
+	case -10:
+		return 't';
+	default:
+		cout << "Print x";
+		return 'x';
+	}
+}
+
+char mapTurn2(int drift)   // y-axis XCHANGED from char* to char
+{
+	switch (drift)
+	{
+	case 0:
+		return '0';
+	case 1:
+		return 'A';
+	case 2:
+		return 'B';
+	case 3:
+		return 'C';
+	case 4:
+		return 'D';
+	case 5:
+		return 'E';
+	case 6:
+		return 'F';
+	case 7:
+		return 'G';
+	case 8:
+		return 'H';
+	case 9:
+		return 'I';
+	case 10:
+		return 'J';
+	case -1:
+		return 'K';
+	case -2:
+		return 'L';
+	case -3:
+		return 'M';
+	case -4:
+		return 'N';
+	case -5:
+		return 'O';
+	case -6:
+		return 'P';
+	case -7:
+		return 'Q';
+	case -8:
+		return 'R';
+	case -9:
+		return 'S';
+	case -10:
+		return 'T';
+	default:
+		cout << "Print x";
+		return 'x';
+	}
+}
+
+char mapMove(int drift) // XCHANGED from char* to char
+{
+	switch (drift)
+	{
+	case 0:
+		return 'z';
+	case 1:
+		return '1';
+	case 2:
+		return '2';
+	case 3:
+		return '3';
+	case 4:
+		return '4';
+	case 5:
+		return '5';
+	case -1:
+		return '6';
+	case -2:
+		return '7';
+	case -3:
+		return '8';
+	case -4:
+		return '9';
+	case -5:
+		return ':';
+	default:
+		return 'x';
+	}
+}*/
+
+/* Changes the response of the PID depending on the size of the tracked object,
+ * avoids sudden movements when target is too close and tracks faster when
+ * object is far away.*/
+/*void PID_dist(double &Kp,double &Ki,double &Kd, int radium, float range)
+{
+	Kp2 = Kp + Kp * range;
+	Ki2 = Ki + Ki * range;
+	Kp3 = Kp - Kp * range;
+	Ki3 = Ki - Ki * range;
+
+	if (radium < 20) // most dynamic response when object is small
+	{
+		Kp1 = Kp2;
+		Ki1 = Ki2;
+	}
+	else if (radium > 100) //least dynamic response when object is big
+	{
+		Kp1 = Kp3;
+		Ki1 = Ki3;
+	}
+	else //linear response between two intervals
+	{
+		Kp1 = ((Kp3 - Kp2) * (radium - 20)) / 80 + Kp2;
+		Ki1 = ((Ki3 - Ki2) * (radium - 20)) / 80 + Ki2;
+	}
+
+	PID_turn1.set_gainvals(Kp1, Kd, Ki1);
+	PID_turn2.set_gainvals(Kp1, Kd, Ki1);
+}*/

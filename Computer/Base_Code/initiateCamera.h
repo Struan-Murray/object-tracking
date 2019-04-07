@@ -1,11 +1,13 @@
-#include "selectCamera.h"
+#ifndef INITIATECAMERA_H
+#define INITIATECAMERA_H
+
 #include "imageTrackingGlobals.h"
 #include <opencv2/videoio.hpp>
 #include <iostream>
 
 using namespace cv;
 
-int selectCamera(VideoCapture& cameraReturned, int& fps)
+int initiateCamera(VideoCapture& cameraReturned, int& fps)
 {
 	VideoCapture cameraChecked[64]; // Declare a VideoCapture object and associate to webcam, 0 => use 1st webcam.
 	int cameraCount = 0; // Number of cameras connected to computer.
@@ -98,3 +100,5 @@ int selectCamera(VideoCapture& cameraReturned, int& fps)
 	}
 	return 0;
 }
+
+#endif
