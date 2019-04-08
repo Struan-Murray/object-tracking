@@ -14,10 +14,6 @@
 #include "initiateLogFile.h"
 #include "utilities.h"
 
-//#include "IntervalCheckTimer.h"
-//#include "basic_speed_PID.h"
-//#include "SerialPort.h" // Microsoft Windows only Serial port manager for interfacing with microcontroller. XWINDOWS
-
 // OpenCV libraries
 
 #include <opencv2/core.hpp> // OpenCV's core functionality, definition of Mat
@@ -31,10 +27,6 @@
 #include <chrono>
 #include <fstream>
 #include <thread>
-//#include <deque>
-//#include <sstream>
-//#include <stdio.h>
-//#include <stdlib.h>
 
 using namespace cv;
 using namespace std;
@@ -100,27 +92,18 @@ int x_out, y_out;
 int radium;
 int counthere = 0;
 int prima = 1;
-//basic_speed_PID PID_turn1(0, 0, 0, -10, 10);
-//basic_speed_PID PID_turn2(0, 0, 0, -10, 10);
-//basic_speed_PID PID_speed(0, 0, 0, -5 , 5 );
-//IntervalCheckTimer timer;
 
 /* ----------------------- Main Code Begins ----------------------- */
 
 // TO BE CHECKED
 
+void getCameraData(VideoCapture* cam, Mat* img);
 int trackFilteredObject(int &x, int &y, int &radius, Mat threshold, Mat &cameraFeed, const int minArea, const int maxArea); // Establishes borders and center of object
 void targetAquired(Mat &imgOriginal, Mat &threshold, VideoCapture camera, char charCheckForEscKey, int&);
 void adjuster_U(Mat imgYUV, int delta, int fine, int interval, int radium, Rect r);
 void adjuster_V(Mat imgYUV, int delta, int fine, int interval, int radium, Rect r);
 void facendi(Mat imgYUV, Mat imgOriginal, int range, int fine, int x, int y);
-void displayDirection(int_fast16_t x, int_fast16_t y, int_fast16_t* bufferX, int_fast16_t* bufferY);
-//void checkturn(int x, int &drift_Turn); // x-axis
-//void checkturn2(int y, int &drift_Turn2); // y-axis
-//char mapTurn(int); // x-axis XCHANGED from char* to char XARDUINO
-//char mapTurn2(int); // y-axis XCHANGED from char* to char XARDUINO
-//char mapMove(int); // XCHANGED from char* to char XARDUINO
-//void PID_dist(double &Kp,double &Ki,double &Kd, int radium, float range); // Modifies PID values based on distance
+void displayDirection(int_fast16_t x, int_fast16_t y, int_fast16_t &lastX, int_fast16_t &lastY);
 
 int main()
 {
@@ -150,35 +133,27 @@ int main()
 
 	/* Arduino connection */
 
-	//SerialPort arduino("\\\\.\\COM3");
+	/*//SerialPort arduino("\\\\.\\COM3");
 
 	std::cout << "Connect to Arduino? ";
 	if(confirm()){errorReturn = initiateArduino();}
 	else{}
 	if(errorReturn){return errorReturn;}
-	else{}
+	else{}*/
 
-	const intmax_t absoluteMaxAdjustmentTime = 1000 / 10; // Minimum framerate set to 10 FPS.
 	maxAdjustmentTime = 1100/fps; // Aims for the code to run at no less than half the maximum framerate.
 	intmax_t uvAdjust = 20000;
 
 	/* History and data aquisition */
 
-	int_fast16_t bufferX[2] = {0,0}; // List of last tracked X coordinates.
-	int_fast16_t bufferY[2] = {0,0}; // List of last tracked Y coordinatess.
+	int_fast16_t lastX = 0; // List of last tracked X coordinates.
+	int_fast16_t lastY = 0; // List of last tracked Y coordinatess.
 
 	double Kd{0.0};
 
-/*	double Kp{0.03};
-	double Ki{1.0};
-	int drift_Turn = 0;
-	int drift_Turn2 = 0;*/
-	//int drift_Move = 0;      //PID parameters are produced automatically as the programme executes
-
-	//PID_turn1.set_gainvals(Kp, Kd, Ki);
-	//PID_turn2.set_gainvals(Kp, Kd, Ki);
-
-	Mat imgOriginal;
+	Mat imgRaw;
+	camera.read(imgRaw);
+	Mat imgOriginal = imgRaw;
 	Mat threshold;
 	Mat imgYUV;
 	Mat borderImage;
@@ -199,7 +174,6 @@ int main()
 	targetAquired(imgOriginal, threshold, camera, charCheckForEscKey, startProgram);
 
 	std::cout << "Target found" << std::endl;
-	//timer.setInterCheck(100);
 
 	namedWindow("Threshold", WINDOW_NORMAL);
 	namedWindow("imgOriginal", WINDOW_NORMAL); // CV_WINDOW_NORMAL which allows resizing the window
@@ -218,7 +192,8 @@ int main()
 		time_begin = std::chrono::high_resolution_clock::now();
 		time_start = std::chrono::high_resolution_clock::now();
 
-		camera.read(imgOriginal);
+		imgOriginal = imgRaw;
+		std::thread cameraThread(getCameraData, &camera, &imgRaw);
 
 		time_end = std::chrono::high_resolution_clock::now();
 		print[0] = std::to_string(getNanoTime(time_start, time_end));
@@ -264,7 +239,7 @@ int main()
 		inRange(imgYUV, cv::Scalar(Y_MIN, U_MIN, V_MIN), cv::Scalar(Y_MAX, U_MAX, V_MAX), threshold);
 
 		morphOps(threshold);
-		displayDirection(x, y, bufferX, bufferY);
+		displayDirection(x, y, lastX, lastY);
 
 		time_end = std::chrono::high_resolution_clock::now();
 		print[4] = std::to_string(getNanoTime(time_start, time_end));
@@ -331,7 +306,7 @@ int main()
 			//checkDrive(radius, drift_Move);
 			//checkturn2(y, drift_Turn2);
 		}*/
-		charCheckForEscKey = cv::waitKey(10);
+		charCheckForEscKey = cv::waitKey(1);
 
 		time_end = std::chrono::high_resolution_clock::now();
 		print[10] = std::to_string(getNanoTime(time_start, time_end));
@@ -368,12 +343,23 @@ int main()
 			}
 			statsFile << "\n";
 		}
+
+		cameraThread.join();
 	}
 
 	statsFile.close();
 	destroyAllWindows();
 	std::cout << "Finished\n";
 	return 0;
+}
+
+void getCameraData(VideoCapture* cam, Mat* img)
+{
+	Mat temp;
+	cam->read(temp);
+	if(temp.empty()){return;}
+	else{temp.copyTo(*img);}
+	return;
 }
 
 // TO BE CHECKED
@@ -908,19 +894,19 @@ void facendi(Mat imgYUV, Mat imgOriginal, int range, int fine, int x, int y)
 	}
 }
 
-void displayDirection(int_fast16_t x, int_fast16_t y, int_fast16_t* bufferX, int_fast16_t* bufferY) // Calculates direction of object over several frames XSTRUANCHECKED
+void displayDirection(int_fast16_t x, int_fast16_t y, int_fast16_t &lastX, int_fast16_t &lastY) // Calculates direction of object over several frames XSTRUANCHECKED
 {
 	if(counter <= 0)
 	{
 		counter = 1;
-		bufferX[0] = x;
-		bufferY[0] = y;
+		lastX = x;
+		lastY = y;
 	}
 	else if (counter >= 3) // Frames to be skipped - 1 (3 = 4 frames)
 	{
 		counter = 0;
-		dx = x - bufferX[0];
-		dy = y - bufferY[0];
+		dx = x - lastX;
+		dy = y - lastY;
 
 		if (abs(dx) > 10)
 		{
@@ -940,208 +926,3 @@ void displayDirection(int_fast16_t x, int_fast16_t y, int_fast16_t* bufferX, int
 
 	return;
 }
-
-/*void checkturn(int x, int &drift_Turn)  // x-axis
-{
-	int old_drift = drift_Turn;
-	int change_Drift;
-
-	if (objectFound == false)
-	{
-		//arduino.writeSerialPort(mapTurn(11), 2);
-	}
-	if (objectFound == true)
-	{
-		drift_Turn = PID_turn1.ComputePID_output(320, x);
-		change_Drift = drift_Turn - old_drift;
-		if (change_Drift != 0)
-		{
-			//arduino.writeSerialPort(mapTurn(drift_Turn), 2);
-		}
-	}
-}
-
-void checkturn2(int y, int &drift_Turn2)     // y-axis
-{
-	int old_drift2 = drift_Turn2;
-	int change_Drift2;
-
-	if (objectFound == false)
-	{
-		//arduino.writeSerialPort(mapTurn(11), 2);
-	}
-	if (objectFound == true)
-	{
-		drift_Turn2 = PID_turn2.ComputePID_output(240, y);
-		change_Drift2 = drift_Turn2 - old_drift2;
-		if (change_Drift2 != 0)
-		{
-			//arduino.writeSerialPort(mapTurn2(drift_Turn2), 2);
-		}
-	}
-}*/
-
-/*char mapTurn(int drift)   // x-axis XCHANGED from char* to char
-{
-	switch (drift)
-	{
-	case 0:
-		return '0';
-	case 1:
-		return 'a';
-	case 2:
-		return 'b';
-	case 3:
-		return 'c';
-	case 4:
-		return 'd';
-	case 5:
-		return 'e';
-	case 6:
-		return 'f';
-	case 7:
-		return 'g';
-	case 8:
-		return 'h';
-	case 9:
-		return 'i';
-	case 10:
-		return 'j';
-	case -1:
-		return 'k';
-	case -2:
-		return 'l';
-	case -3:
-		return 'm';
-	case -4:
-		return 'n';
-	case -5:
-		return 'o';
-	case -6:
-		return 'p';
-	case -7:
-		return 'q';
-	case -8:
-		return 'r';
-	case -9:
-		return 's';
-	case -10:
-		return 't';
-	default:
-		cout << "Print x";
-		return 'x';
-	}
-}
-
-char mapTurn2(int drift)   // y-axis XCHANGED from char* to char
-{
-	switch (drift)
-	{
-	case 0:
-		return '0';
-	case 1:
-		return 'A';
-	case 2:
-		return 'B';
-	case 3:
-		return 'C';
-	case 4:
-		return 'D';
-	case 5:
-		return 'E';
-	case 6:
-		return 'F';
-	case 7:
-		return 'G';
-	case 8:
-		return 'H';
-	case 9:
-		return 'I';
-	case 10:
-		return 'J';
-	case -1:
-		return 'K';
-	case -2:
-		return 'L';
-	case -3:
-		return 'M';
-	case -4:
-		return 'N';
-	case -5:
-		return 'O';
-	case -6:
-		return 'P';
-	case -7:
-		return 'Q';
-	case -8:
-		return 'R';
-	case -9:
-		return 'S';
-	case -10:
-		return 'T';
-	default:
-		cout << "Print x";
-		return 'x';
-	}
-}
-
-char mapMove(int drift) // XCHANGED from char* to char
-{
-	switch (drift)
-	{
-	case 0:
-		return 'z';
-	case 1:
-		return '1';
-	case 2:
-		return '2';
-	case 3:
-		return '3';
-	case 4:
-		return '4';
-	case 5:
-		return '5';
-	case -1:
-		return '6';
-	case -2:
-		return '7';
-	case -3:
-		return '8';
-	case -4:
-		return '9';
-	case -5:
-		return ':';
-	default:
-		return 'x';
-	}
-}*/
-
-/* Changes the response of the PID depending on the size of the tracked object,
- * avoids sudden movements when target is too close and tracks faster when
- * object is far away.*/
-/*void PID_dist(double &Kp,double &Ki,double &Kd, int radium, float range)
-{
-	Kp2 = Kp + Kp * range;
-	Ki2 = Ki + Ki * range;
-	Kp3 = Kp - Kp * range;
-	Ki3 = Ki - Ki * range;
-
-	if (radium < 20) // most dynamic response when object is small
-	{
-		Kp1 = Kp2;
-		Ki1 = Ki2;
-	}
-	else if (radium > 100) //least dynamic response when object is big
-	{
-		Kp1 = Kp3;
-		Ki1 = Ki3;
-	}
-	else //linear response between two intervals
-	{
-		Kp1 = ((Kp3 - Kp2) * (radium - 20)) / 80 + Kp2;
-		Ki1 = ((Ki3 - Ki2) * (radium - 20)) / 80 + Ki2;
-	}
-
-	PID_turn1.set_gainvals(Kp1, Kd, Ki1);
-	PID_turn2.set_gainvals(Kp1, Kd, Ki1);
-}*/

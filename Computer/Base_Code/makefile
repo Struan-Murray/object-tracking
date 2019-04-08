@@ -1,5 +1,5 @@
 CC:=g++
-CFLAGS:= -std=c++14 -Wall -Wextra -pthread -O3 `pkg-config --cflags opencv4`
+CFLAGS:= -std=c++17 -Wall -Wextra -pthread -lstdc++fs -O3 `pkg-config --cflags opencv4`
 LDFLAGS:= `pkg-config --libs opencv4`
 FILES:= main.cpp utilities.cpp
 

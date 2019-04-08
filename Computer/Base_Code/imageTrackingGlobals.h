@@ -16,9 +16,10 @@ const int dilationMagnitude = 16;
 
 #define MARKER_TYPE MARKER_STAR // Marker to place on tracked object
 
-const int frameHeight = 480;
 const double aspectRatio = (double)4/(double)3;
+const int frameHeight = 480;
 const int frameWidth = (int)(aspectRatio * (double)frameHeight);
+
 const char seperator = ',';
 
 #endif

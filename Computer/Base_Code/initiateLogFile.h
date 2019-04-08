@@ -8,12 +8,23 @@
 #include <iostream>
 #include <string>
 
+#if __GNUC__ >= 8
+	#include <cstdlib>
+	#include <filesystem>
+	namespace fs = std::filesystem;
+#endif
+
 int initiateLogFile(cv::VideoCapture& camera, std::ofstream& statsFile)
 {
 	intmax_t programStartTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
 
 	std::cout << "Opening performance file...\n";
-	statsFile.open("Log_" + std::to_string(programStartTime) + ".csv", std::ios::out | std::ios::trunc);
+
+	#if __GNUC__ >= 8
+		fs::create_directory("logs");
+	#endif
+
+	statsFile.open("logs/Log_" + std::to_string(programStartTime) + ".csv", std::ios::out | std::ios::trunc);
 
 	if (statsFile.is_open() == true) // Check if performance file was opened
 	{
@@ -31,10 +42,9 @@ int initiateLogFile(cv::VideoCapture& camera, std::ofstream& statsFile)
 	}
 	else
 	{
-		perror("STRUAN: File not opened, check filesystem is accessible to program.\nCOMPUTER");
+		perror("STRUAN: File not opened, check filesystem is accessible to program and \"logs\" directory exists.\nCOMPUTER");
 		return -3;
 	}
-
 	return 0;
 }
 
