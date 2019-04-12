@@ -11,7 +11,6 @@ std::string printFormattedTime(std::chrono::high_resolution_clock::time_point, s
 intmax_t getNanoTime(std::chrono::high_resolution_clock::time_point, std::chrono::high_resolution_clock::time_point); // Returns time in microseconds XSTRUANCHECKED
 void createTrackbars(int&); // Creates window with option to start program XSTRUANCHECKED
 void drawObject(int , int , int, cv::Mat&); // Draws a target marker at point specified by inputs to function XSTRUANCHECKED
-void morphOps(cv::Mat&); // Takes raw binary image (thresh) and erodes noise, then dilates what remains XSTRUANCHECKED
 void displayDirection(int_fast16_t, int_fast16_t, int_fast16_t*, int_fast16_t*); // Calculates direction of object over several frames XSTRUANCHECKED
 
 #endif
