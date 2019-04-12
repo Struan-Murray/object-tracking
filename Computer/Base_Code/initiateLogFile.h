@@ -33,11 +33,11 @@ int initiateLogFile(cv::VideoCapture& camera, std::ofstream& statsFile)
 		statsFile << "ResolutionHeight:" << seperator  << camera.get(cv::CAP_PROP_FRAME_HEIGHT) << "\n";
 		statsFile << "ResolutionWidth:" << seperator << camera.get(cv::CAP_PROP_FRAME_WIDTH) << "\n";
 		statsFile << "\n";
-		statsFile << "ObjectFound" << seperator << "WebcamRead" << seperator <<
+		statsFile << "ObjectTracked" << seperator << "WebcamRead" << seperator <<
 		"GaussianBlur" << seperator << "ColourConversion" << seperator <<
-		"SelectMode" << seperator << "InRangeMorphOpsDisplayDirection" <<
-		seperator << "TrackFilteredObject" << seperator << "PIDDist" <<
-		seperator << "Facendi" << seperator << "PutText" << seperator <<
+		"Mode" << seperator << "OutputBinaryErodeDilateDisplayDirection" <<
+		seperator << "FindContoursCentreHighlight" << seperator << "PIDDist" <<
+		seperator << "AdjustUV" << seperator << "PutText" << seperator <<
 		"ShowImage" << seperator << "TimeWaitKey\n";
 	}
 	else

@@ -894,19 +894,21 @@ void facendi(Mat imgYUV, Mat imgOriginal, int range, int fine, int x, int y)
 	}
 }
 
-void displayDirection(int_fast16_t x, int_fast16_t y, int_fast16_t &lastX, int_fast16_t &lastY) // Calculates direction of object over several frames XSTRUANCHECKED
+void displayDirection(int_fast16_t x, int_fast16_t y, int_fast16_t &lastX, int_fast16_t &lastY) // Calculates direction of object over several frames
 {
-	if(counter <= 0)
+	if(counter < 0)
 	{
-		counter = 1;
-		lastX = x;
-		lastY = y;
+		counter = 0;
+		
 	}
 	else if (counter >= 3) // Frames to be skipped - 1 (3 = 4 frames)
 	{
 		counter = 0;
 		dx = x - lastX;
 		dy = y - lastY;
+		lastX = x;
+		lastY = y;
+
 
 		if (abs(dx) > 10)
 		{
