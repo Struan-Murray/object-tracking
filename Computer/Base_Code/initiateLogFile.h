@@ -38,7 +38,7 @@ int initiateLogFile(cv::VideoCapture& camera, std::ofstream& statsFile)
 		"SelectMode" << seperator << "InRangeMorphOpsDisplayDirection" <<
 		seperator << "TrackFilteredObject" << seperator << "PIDDist" <<
 		seperator << "Facendi" << seperator << "PutText" << seperator <<
-		"ShowImage" << seperator << "TimeWaitKey\n";
+		"ShowImage" << seperator << "TimeWaitKey" << seperator << "Frame" << seperator << "MorphOps" << seperator << "DisplayDirection\n";
 	}
 	else
 	{

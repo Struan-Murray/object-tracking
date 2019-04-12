@@ -104,6 +104,7 @@ void adjuster_U(Mat imgYUV, int delta, int fine, int interval, int radium, Rect 
 void adjuster_V(Mat imgYUV, int delta, int fine, int interval, int radium, Rect r);
 void facendi(Mat imgYUV, Mat imgOriginal, int range, int fine, int x, int y);
 void displayDirection(int_fast16_t x, int_fast16_t y, int_fast16_t &lastX, int_fast16_t &lastY);
+void morphOps(cv::Mat&); // Takes raw binary image (thresh) and erodes noise, then dilates what remains XSTRUANCHECKED
 
 int main()
 {
@@ -182,7 +183,7 @@ int main()
 	auto time_start = std::chrono::high_resolution_clock::now();
 	auto time_end = std::chrono::high_resolution_clock::now();
 
-	std::string print[12];
+	std::string print[14];
 
 	// Main loop
 
@@ -200,7 +201,7 @@ int main()
 
 		time_start = std::chrono::high_resolution_clock::now();
 
-		GaussianBlur(imgOriginal, imgOriginal, cv::Size(5, 5), 0);
+		//GaussianBlur(imgOriginal, imgOriginal, cv::Size(5, 5), 0);
 
 		time_end = std::chrono::high_resolution_clock::now();
 		print[1] = std::to_string(getNanoTime(time_start, time_end));
@@ -238,12 +239,20 @@ int main()
 
 		inRange(imgYUV, cv::Scalar(Y_MIN, U_MIN, V_MIN), cv::Scalar(Y_MAX, U_MAX, V_MAX), threshold);
 
+		time_end = std::chrono::high_resolution_clock::now();
+		print[4] = std::to_string(getNanoTime(time_start, time_end));
+		time_start = std::chrono::high_resolution_clock::now();
+
 		morphOps(threshold);
+
+		time_end = std::chrono::high_resolution_clock::now();
+		print[12] = std::to_string(getNanoTime(time_start, time_end));
+		time_start = std::chrono::high_resolution_clock::now();
+
 		displayDirection(x, y, lastX, lastY);
 
 		time_end = std::chrono::high_resolution_clock::now();
-		print[4] = std::to_string(getNanoTime(time_start, time_end));
-
+		print[13] = std::to_string(getNanoTime(time_start, time_end));
 		time_start = std::chrono::high_resolution_clock::now();
 
 		if (trackFilteredObject(x, y, radius, threshold, imgOriginal, minimumObjectArea, maximumObjectArea) == 1)
@@ -306,7 +315,7 @@ int main()
 			//checkDrive(radius, drift_Move);
 			//checkturn2(y, drift_Turn2);
 		}*/
-		charCheckForEscKey = cv::waitKey(1);
+		charCheckForEscKey = cv::waitKey(20);
 
 		time_end = std::chrono::high_resolution_clock::now();
 		print[10] = std::to_string(getNanoTime(time_start, time_end));
@@ -336,7 +345,7 @@ int main()
 		if(statsFile.is_open())
 		{
 			statsFile << std::to_string(objectFound) << seperator;
-			for(int_fast16_t i = 0; i < 12; ++i)
+			for(int_fast16_t i = 0; i < 14; ++i)
 			{
 				statsFile << print[i];
 				statsFile << seperator;
@@ -925,4 +934,28 @@ void displayDirection(int_fast16_t x, int_fast16_t y, int_fast16_t &lastX, int_f
 	else{counter++;}
 
 	return;
+}
+
+void morphOps(Mat &thresh) // Takes raw binary image (thresh) and erodes noise, then dilates what remains XSTRUANCHECKED
+{
+	// Create element structure that will erode the binary image.
+	Mat erosionElement = getStructuringElement(EROSION_TYPE, Size(erosionMagnitude, erosionMagnitude));
+
+	// Update element structure to dilate image
+	Mat dilationElement = getStructuringElement(DILATION_TYPE, Size(dilationMagnitude, dilationMagnitude));
+
+	auto time_start = std::chrono::high_resolution_clock::now();
+
+	// Erode binary image
+	erode(thresh, thresh, erosionElement);
+
+	auto time_end = std::chrono::high_resolution_clock::now();
+	std::cout << printFormattedTime(time_start,time_end) << "\n";
+	time_start = std::chrono::high_resolution_clock::now();
+
+	// Dilate binary image
+	dilate(thresh, thresh, dilationElement);
+
+	time_end = std::chrono::high_resolution_clock::now();
+	std::cout << printFormattedTime(time_start,time_end) << "\n";
 }

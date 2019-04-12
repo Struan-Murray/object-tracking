@@ -73,18 +73,3 @@ void drawObject(int x, int y, int radius, Mat &frame) // Draws a target marker a
 	#endif
 	#endif
 }
-
-void morphOps(Mat &thresh) // Takes raw binary image (thresh) and erodes noise, then dilates what remains XSTRUANCHECKED
-{
-	// Create element structure that will erode the binary image.
-	Mat opElement = getStructuringElement(EROSION_TYPE, Size(erosionMagnitude, erosionMagnitude));
-
-	erode(thresh, thresh, opElement); // Erode binary image
-
-	#if SIMPLE_OPTIMISATIONS == 0
-	// Update element structure to dilate image
-	opElement = getStructuringElement(DILATION_TYPE, Size(dilationMagnitude, dilationMagnitude));
-	#endif
-
-	dilate(thresh, thresh, opElement); // Dilate binary image
-}

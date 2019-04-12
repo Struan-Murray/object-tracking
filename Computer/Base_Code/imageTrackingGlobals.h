@@ -9,10 +9,10 @@
 #define SIMPLE_OPTIMISATIONS 0 // Cuts out unnecesary operations
 #define EXPENSIVE_OPTIMISATIONS 0 // Cuts out important operations
 
-#define EROSION_TYPE MORPH_ELLIPSE // Target Erosion Type
+#define EROSION_TYPE MORPH_RECT // Target Erosion Type
 const int erosionMagnitude = 6;
-#define DILATION_TYPE MORPH_ELLIPSE // Target Dilation Type
-const int dilationMagnitude = 16;
+#define DILATION_TYPE MORPH_RECT // Target Dilation Type
+const int dilationMagnitude = 6;
 
 #define MARKER_TYPE MARKER_STAR // Marker to place on tracked object
 
